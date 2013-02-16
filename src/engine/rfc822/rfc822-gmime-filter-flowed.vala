@@ -6,6 +6,8 @@
 
 // Filter to correctly handle flowed text as described in RFC 2646.
 class GMime.FilterFlowed : GMime.Filter {
+    private char quote_marker;
+    
     // Invariant: True iff the last character seen was a space OR the penultimate character seen
     // was a space and the last character seen was a \r.
     private bool saw_space;
@@ -31,7 +33,9 @@ class GMime.FilterFlowed : GMime.Filter {
     // parsing the prefix.
     private uint current_quote_level;
     
-    public FilterFlowed() {
+    public FilterFlowed(bool to_html) {
+        // TODO_: HTML filter converts unicode not in 0x20 to 0x7f to "&#num;"
+        quote_marker = to_html ? '\x7f' : '>';
         reset();
     }
     
@@ -46,7 +50,7 @@ class GMime.FilterFlowed : GMime.Filter {
     }
     
     public override GMime.Filter copy() {
-        FilterFlowed new_filter = new FilterFlowed();
+        FilterFlowed new_filter = new FilterFlowed(quote_marker == '\x7f');
         
         new_filter.saw_space = saw_space;
         new_filter.saw_cr = saw_cr;
@@ -80,8 +84,9 @@ class GMime.FilterFlowed : GMime.Filter {
                 
                 if (in_first_prefix) {
                     for (uint j = 0; j < current_quote_level; j++)
-                        outbuf[out_index++] = '>';
-                } else if (!last_line_was_flowed || current_quote_level != last_quote_level) {
+                        outbuf[out_index++] = quote_marker;
+                } else if (!last_line_was_flowed || current_quote_level != last_quote_level ||
+                    (out_index > 3 && Geary.RFC822.Utils.comp_char_arr_slice(outbuf, out_index-4, "\n-- "))) {
                     // We encountered a non-flowed line-break, so insert a CRLF.
                     outbuf[out_index++] = '\r';
                     outbuf[out_index++] = '\n';
@@ -89,7 +94,7 @@ class GMime.FilterFlowed : GMime.Filter {
                     // We haven't been writing the quote prefix as we've scanned it, so we need to
                     // write it now.
                     for (uint j = 0; j < current_quote_level; j++)
-                        outbuf[out_index++] = '>';
+                        outbuf[out_index++] = quote_marker;
                 }
                 
                 // We saw a character other than '>', so we're done scanning the prefix.
@@ -97,6 +102,10 @@ class GMime.FilterFlowed : GMime.Filter {
                 in_prefix = false;
                 last_quote_level = current_quote_level;
                 current_quote_level = 0;
+                
+                // A single space following the prefix is space stuffed
+                if (c == ' ')
+                    continue;
             }
             
             switch (c) {

@@ -364,7 +364,8 @@ public class Geary.RFC822.Message : Object {
         return new Geary.Memory.StringBuffer(message.to_string());
     }
     
-    public Geary.Memory.AbstractBuffer get_first_mime_part_of_content_type(string content_type)
+    public Geary.Memory.AbstractBuffer get_first_mime_part_of_content_type(string content_type,
+        bool to_html = false)
         throws RFC822Error {
         // search for content type starting from the root
         GMime.Part? part = find_first_mime_part(message.get_mime_part(), content_type);
@@ -374,7 +375,7 @@ public class Geary.RFC822.Message : Object {
         }
         
         // convert payload to a buffer
-        return mime_part_to_memory_buffer(part, true);
+        return mime_part_to_memory_buffer(part, true, to_html);
     }
 
     private GMime.Part? find_first_mime_part(GMime.Object current_root, string content_type) {
@@ -396,6 +397,29 @@ public class Geary.RFC822.Message : Object {
         }
 
         return null;
+    }
+
+    public string? get_html_body() throws RFC822Error {
+        return get_first_mime_part_of_content_type("text/html").to_string();
+    }
+    
+    public string? get_text_body() throws RFC822Error {
+        return get_first_mime_part_of_content_type("text/plain", true).to_string();
+    }
+    
+    public string? get_body(bool html_format) throws RFC822Error {
+        try {
+            if (html_format)
+                return get_html_body();
+            else
+                return get_text_body();
+        } catch (Error error) {
+            if (html_format)
+                return get_text_body();
+            else
+                // TODO_: Strip stuff out of this?
+                return get_html_body();
+        }
     }
 
     public Geary.Memory.AbstractBuffer get_content_by_mime_id(string mime_id) throws RFC822Error {
@@ -454,7 +478,9 @@ public class Geary.RFC822.Message : Object {
     }
 
     private Geary.Memory.AbstractBuffer mime_part_to_memory_buffer(GMime.Part part,
-        bool to_utf8 = false) throws RFC822Error {
+        bool to_utf8 = false, bool to_html = false) throws RFC822Error {
+        // to_utf is true only when called by get_first_mime_part_of_content_type, which
+        // we're changing to be called only by get_*_body.
 
         GMime.DataWrapper? wrapper = part.get_content_object();
         if (wrapper == null) {
@@ -473,12 +499,21 @@ public class Geary.RFC822.Message : Object {
             if (charset == null)
                 charset = DEFAULT_ENCODING;
             stream_filter.add(new GMime.FilterCharset(charset, "UTF8"));
-            string? format = part.get_content_type_parameter("format");
-            if (format == "flowed")
-                stream_filter.add(new GMime.FilterFlowed());
+        }
+        string? format = part.get_content_type_parameter("format");
+        if (format == "flowed")
+            stream_filter.add(new GMime.FilterFlowed(to_html));
+        if (to_html) {
+            if (format != "flowed")
+                stream_filter.add(new GMime.FilterPlain());
+            // HTML filter does stupid stuff to \r, so get rid of them.
+            stream_filter.add(new GMime.FilterCRLF(false, false));
+            stream_filter.add(new GMime.FilterHTML(GMime.FILTER_HTML_PRE | GMime.FILTER_HTML_CONVERT_URLS | GMime.FILTER_HTML_CONVERT_ADDRESSES, 0));
+            stream_filter.add(new GMime.FilterBlockquotes());
         }
 
         wrapper.write_to_stream(stream_filter);
+        stream_filter.flush();
         
         return new Geary.Memory.Buffer(byte_array.data, byte_array.len);
     }
