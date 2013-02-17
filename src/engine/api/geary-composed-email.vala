@@ -27,8 +27,8 @@ public class Geary.ComposedEmail : Object {
     public RFC822.Subject? subject { get; set; default = null; }
     // TODO_: Adjust getter or setter (which?) to convert HTML to plain text
     // Or in Geary.RFC822.Message.from_composed_email ?
-    public RFC822.Text? body_text { get; set; default = null; }
-    public RFC822.Text? body_html { get; set; default = null; }
+    public string? body_text { get; set; default = null; }
+    public string? body_html { get; set; default = null; }
     public string? mailer { get; set; default = null; }
     public Gee.Set<File> attachment_files { get; private set;
         default = new Gee.HashSet<File>(File.hash, (EqualFunc) File.equal); }
@@ -36,7 +36,7 @@ public class Geary.ComposedEmail : Object {
     public ComposedEmail(DateTime date, RFC822.MailboxAddresses from, 
         RFC822.MailboxAddresses? to = null, RFC822.MailboxAddresses? cc = null,
         RFC822.MailboxAddresses? bcc = null, RFC822.Subject? subject = null,
-        RFC822.Text? body_text = null, RFC822.Text? body_html = null) {
+        string? body_text = null, string? body_html = null) {
         this.date = date;
         this.from = from;
         this.to = to;
@@ -56,10 +56,8 @@ public class Geary.ComposedEmail : Object {
         subject = create_subject_for_reply(source);
         set_reply_references(source);
         
-        body_text = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_reply(source, false)));
-        body_html = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_reply(source, true)));
+        body_text = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(source, false);
+        body_html = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(source, true);
         
         add_attachments_from_source(source);
     }
@@ -74,10 +72,8 @@ public class Geary.ComposedEmail : Object {
         subject = create_subject_for_reply(source);
         set_reply_references(source);
         
-        body_text = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_reply(source, false)));
-        body_html = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_reply(source, true)));
+        body_text = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(source, false);
+        body_html = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(source, true);
         
         add_attachments_from_source(source);
     }
@@ -87,10 +83,8 @@ public class Geary.ComposedEmail : Object {
         
         subject = create_subject_for_forward(source);
         
-        body_text = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_forward(source, false)));
-        body_html = new RFC822.Text(new Geary.Memory.StringBuffer("\n\n" +
-            Geary.RFC822.Utils.quote_email_for_forward(source, true)));
+        body_text = "\n\n" + Geary.RFC822.Utils.quote_email_for_forward(source, false);
+        body_html = "\n\n" + Geary.RFC822.Utils.quote_email_for_forward(source, true);
         
         add_attachments_from_source(source);
     }
@@ -110,8 +104,8 @@ public class Geary.ComposedEmail : Object {
         RFC822.MailboxAddresses? cc = null;
         RFC822.MailboxAddresses? bcc = null;
         RFC822.Subject? subject = null;
-        RFC822.Text? body_text = null;
-        RFC822.Text? body_html = null;
+        string? body_text = null;
+        string? body_html = null;
 
         Gee.HashMultiMap<string, string> headers = new Gee.HashMultiMap<string, string>();
         if (mailto.length > MAILTO_SCHEME.length) {
@@ -160,9 +154,8 @@ public class Geary.ComposedEmail : Object {
             if (headers.contains("body")) {
                 string body = Geary.Collection.get_first(headers.get("body"));
 
-                body_text = new RFC822.Text(new Geary.Memory.StringBuffer(body));
-                body_html = new RFC822.Text(new Geary.Memory.StringBuffer(
-                    Geary.HTML.escape_markup(body)));
+                body_text = body;
+                body_html = body;
             }
         }
 

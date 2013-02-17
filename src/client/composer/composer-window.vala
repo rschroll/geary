@@ -274,9 +274,9 @@ public class ComposerWindow : Gtk.Window {
             if (prefill.subject != null)
                 subject = prefill.subject.value;
             if (prefill.body_html != null)
-                body_html = prefill.body_html.buffer.to_string();
+                body_html = prefill.body_html;
             if (body_html == null && prefill.body_text != null)
-                body_html = "<pre>" + prefill.body_text.buffer.to_string() + "</pre>";
+                body_html = prefill.body_text;
         }
         
         update_from_field();
@@ -504,8 +504,8 @@ public class ComposerWindow : Gtk.Window {
         
         email.attachment_files.add_all(attachment_files);
         
-        email.body_html = new Geary.RFC822.Text(new Geary.Memory.StringBuffer(get_html()));
-        email.body_text = new Geary.RFC822.Text(new Geary.Memory.StringBuffer(get_text()));
+        email.body_html = get_html();
+        email.body_text = get_html(); // TODO_: Any filtering here?
 
         // User-Agent
         email.mailer = GearyApplication.PRGNAME + "/" + GearyApplication.VERSION;
@@ -541,7 +541,7 @@ public class ComposerWindow : Gtk.Window {
     
     private bool should_send() {
         if (Geary.String.is_empty(subject.strip()) ||
-            ((Geary.String.is_empty(get_text()) && attachment_files.size == 0))) {
+            ((Geary.String.is_empty(get_html()) && attachment_files.size == 0))) {
             ConfirmationDialog dialog = new ConfirmationDialog(this,
                 _("Send message with an empty subject and/or body?"), null, Gtk.Stock.OK);
             if (dialog.run() != Gtk.ResponseType.OK)
@@ -929,9 +929,9 @@ public class ComposerWindow : Gtk.Window {
         return editor.get_dom_document().get_body().get_inner_html();
     }
     
-    private string get_text() {
+    /*private string get_text() {
         return editor.get_dom_document().get_body().get_inner_text();
-    }
+    }*/
     
     private bool on_navigation_policy_decision_requested(WebKit.WebFrame frame,
         WebKit.NetworkRequest request, WebKit.WebNavigationAction navigation_action,

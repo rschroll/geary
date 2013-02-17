@@ -107,7 +107,7 @@ public class Geary.RFC822.Message : Object {
         GMime.Part? body_text = null;
         if (email.body_text != null) {
             GMime.DataWrapper content = new GMime.DataWrapper.with_stream(
-                new GMime.StreamMem.with_buffer(email.body_text.buffer.get_array()),
+                new GMime.StreamMem.with_buffer(Geary.HTML.remove_html_tags(email.body_text).data),
                 GMime.ContentEncoding.DEFAULT);
             
             body_text = new GMime.Part();
@@ -119,7 +119,7 @@ public class Geary.RFC822.Message : Object {
         GMime.Part? body_html = null;
         if (email.body_html != null) {
             GMime.DataWrapper content = new GMime.DataWrapper.with_stream(
-                new GMime.StreamMem.with_buffer(email.body_html.buffer.get_array()),
+                new GMime.StreamMem.with_buffer(email.body_html.data),
                 GMime.ContentEncoding.DEFAULT);
             
             body_html = new GMime.Part();
