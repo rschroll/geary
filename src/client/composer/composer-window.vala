@@ -504,8 +504,9 @@ public class ComposerWindow : Gtk.Window {
         
         email.attachment_files.add_all(attachment_files);
         
-        email.body_html = get_html();
-        email.body_text = get_html(); // TODO_: Any filtering here?
+        //email.body_html = get_html();
+        //email.body_text = get_html(); // TODO_: Any filtering here?
+        email.body_dom = editor.get_dom_document();
 
         // User-Agent
         email.mailer = GearyApplication.PRGNAME + "/" + GearyApplication.VERSION;
