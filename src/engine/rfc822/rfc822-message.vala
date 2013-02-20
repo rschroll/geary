@@ -103,38 +103,28 @@ public class Geary.RFC822.Message : Object {
             message.set_header(HEADER_MAILER, email.mailer);
         }
 
-        // Body: HTML format (also optional)
-        GMime.Part? body_html = null;
-        string? body_html_content = null;
-        if (email.body_dom != null)
-            body_html_content = email.body_dom.get_body().get_inner_html();
-        else if (email.body_html != null)
-            body_html_content = email.body_html;
-        if (body_html_content != null) {
-            GMime.DataWrapper content = new GMime.DataWrapper.with_stream(
-                new GMime.StreamMem.with_buffer(body_html_content.data),
-                GMime.ContentEncoding.DEFAULT);
-            
-            body_html = new GMime.Part();
-            body_html.set_content_type(new GMime.ContentType.from_string("text/html; charset=utf-8"));
-            body_html.set_content_object(content);
-        }
-        
         // Body: text format (optional)
         GMime.Part? body_text = null;
-        string? body_text_content = null;
-        if (email.body_dom != null)
-            body_text_content = Geary.HTML.html_to_flowed_text(email.body_dom);
-        else if (email.body_text != null)
-            body_text_content = Geary.HTML.remove_html_tags(email.body_text);
-        if (body_text_content != null) {
+        if (email.body_text != null) {
             GMime.DataWrapper content = new GMime.DataWrapper.with_stream(
-                new GMime.StreamMem.with_buffer(body_text_content.data),
+                new GMime.StreamMem.with_buffer(email.body_text.data),
                 GMime.ContentEncoding.DEFAULT);
             
             body_text = new GMime.Part();
             body_text.set_content_type(new GMime.ContentType.from_string("text/plain; charset=utf-8; format=flowed"));
             body_text.set_content_object(content);
+        }
+        
+        // Body: HTML format (also optional)
+        GMime.Part? body_html = null;
+        if (email.body_html != null) {
+            GMime.DataWrapper content = new GMime.DataWrapper.with_stream(
+                new GMime.StreamMem.with_buffer(email.body_html.data),
+                GMime.ContentEncoding.DEFAULT);
+            
+            body_html = new GMime.Part();
+            body_html.set_content_type(new GMime.ContentType.from_string("text/html; charset=utf-8"));
+            body_html.set_content_object(content);
         }
         
         // Build the message's mime part.

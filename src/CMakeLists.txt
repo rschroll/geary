@@ -391,7 +391,7 @@ pkg_check_modules(DEPS REQUIRED
 )
 
 set(ENGINE_PACKAGES
-    glib-2.0 gee-1.0 gio-2.0 gmime-2.6 unique-3.0 posix sqlite3 WebKit-3.0
+    glib-2.0 gee-1.0 gio-2.0 gmime-2.6 unique-3.0 posix sqlite3
 )
 
 set(CLIENT_PACKAGES

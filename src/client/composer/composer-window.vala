@@ -576,9 +576,8 @@ public class ComposerWindow : Gtk.Window {
         
         email.attachment_files.add_all(attachment_files);
         
-        //email.body_html = get_html();
-        //email.body_text = get_html(); // TODO_: Any filtering here?
-        email.body_dom = editor.get_dom_document();
+        email.body_html = get_html();
+        email.body_text = get_text();
 
         // User-Agent
         email.mailer = GearyApplication.PRGNAME + "/" + GearyApplication.VERSION;
@@ -1002,9 +1001,9 @@ public class ComposerWindow : Gtk.Window {
         return editor.get_dom_document().get_body().get_inner_html();
     }
     
-    /*private string get_text() {
-        return editor.get_dom_document().get_body().get_inner_text();
-    }*/
+    private string get_text() {
+        return html_to_flowed_text(editor.get_dom_document());
+    }
     
     private bool on_navigation_policy_decision_requested(WebKit.WebFrame frame,
         WebKit.NetworkRequest request, WebKit.WebNavigationAction navigation_action,

@@ -27,7 +27,6 @@ public class Geary.ComposedEmail : Object {
     public RFC822.Subject? subject { get; set; default = null; }
     public string? body_text { get; set; default = null; }
     public string? body_html { get; set; default = null; }
-    public WebKit.DOM.Document? body_dom { get; set; default = null; }
     public string? mailer { get; set; default = null; }
     public Gee.Set<File> attachment_files { get; private set;
         default = new Gee.HashSet<File>(File.hash, (EqualFunc) File.equal); }
