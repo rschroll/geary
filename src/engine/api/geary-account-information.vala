@@ -435,4 +435,11 @@ public class Geary.AccountInformation : Object {
     public RFC822.MailboxAddress get_mailbox_address() {
         return new RFC822.MailboxAddress(real_name, email);
     }
+    
+    /**
+     * Returns a MailboxAddresses object with this mailbox address.
+     */
+    public RFC822.MailboxAddresses get_from() {
+        return new RFC822.MailboxAddresses.single(get_mailbox_address());
+    }
 }
