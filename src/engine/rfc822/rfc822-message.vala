@@ -413,8 +413,8 @@ public class Geary.RFC822.Message : Object {
         return get_first_mime_part_of_content_type("text/html").to_string();
     }
     
-    public string? get_text_body() throws RFC822Error {
-        return get_first_mime_part_of_content_type("text/plain", true).to_string();
+    public string? get_text_body(bool convert_to_html = true) throws RFC822Error {
+        return get_first_mime_part_of_content_type("text/plain", convert_to_html).to_string();
     }
     
     public string? get_body(bool html_format) throws RFC822Error {
