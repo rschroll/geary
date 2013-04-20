@@ -414,7 +414,9 @@ add_definitions(${CFLAGS})
 
 set(VALAC_OPTIONS
     --vapidir=${CMAKE_SOURCE_DIR}/bindings/vapi
+    --vapidir=$ENV{HOME}/webkit/share/vala/vapi
     --metadatadir=${CMAKE_SOURCE_DIR}/bindings/metadata
+    --girdir=$ENV{HOME}/webkit/share/gir-1.0
     --target-glib=${TARGET_GLIB}
     --thread
     --enable-checking
@@ -455,7 +457,7 @@ OPTIONS
 )
 
 add_executable(geary ${GEARY_VALA_C})
-target_link_libraries(geary ${DEPS_LIBRARIES} gthread-2.0 geary-static)
+target_link_libraries(geary ${DEPS_LIBRARIES} gthread-2.0 geary-static $ENV{HOME}/webkit/lib/libwebkitgtk-3.0.so $ENV{HOME}/webkit/lib/libsoup-2.4.so $ENV{HOME}/webkit/lib/libgio-2.0.so)
 install(TARGETS geary RUNTIME DESTINATION bin)
 add_custom_command(
     TARGET
