@@ -292,6 +292,8 @@ client/accounts/account-spinner-page.vala
 client/accounts/add-edit-page.vala
 client/accounts/login-dialog.vala
 
+client/composer/composer-container.vala
+client/composer/composer-widget.vala
 client/composer/composer-window.vala
 client/composer/contact-entry-completion.vala
 client/composer/email-entry.vala
