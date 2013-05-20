@@ -467,8 +467,8 @@ along with Geary; if not, write to the Free Software Foundation, Inc.,
         }
     }
     
-    public Gee.List<ComposerWindow>? get_composer_windows_for_account(Geary.AccountInformation account) {
-        return controller.get_composer_windows_for_account(account);
+    public Gee.List<ComposerWidget>? get_composer_widgets_for_account(Geary.AccountInformation account) {
+        return controller.get_composer_widgets_for_account(account);
     }
 }
 
