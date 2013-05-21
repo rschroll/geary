@@ -174,7 +174,7 @@ public class ComposerWidget : Gtk.EventBox {
     }
     
     public ComposerWidget(Geary.Account account, ComposeType compose_type,
-        Geary.Email? referred = null, bool in_window = true) {
+        Geary.Email? referred = null) {
         this.account = account;
         this.compose_type = compose_type;
         
@@ -426,7 +426,7 @@ public class ComposerWidget : Gtk.EventBox {
         chain.append(button_area);
         box.set_focus_chain(chain);
         
-        if (in_window)
+        if (!ComposerEmbed.create_embed(this, referred))
             new ComposerWindow(this);
     }
     
