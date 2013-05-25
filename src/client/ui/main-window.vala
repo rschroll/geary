@@ -13,6 +13,7 @@ public class MainWindow : Gtk.Window {
     public MainToolbar main_toolbar { get; private set; }
     public ConversationListView conversation_list_view  { get; private set; }
     public ConversationViewer conversation_viewer { get; private set; default = new ConversationViewer(); }
+    public ComposerEmbed composer_embed { get; private set; }
     
     public int window_width { get; set; }
     public int window_height { get; set; }
@@ -28,6 +29,7 @@ public class MainWindow : Gtk.Window {
         title = GearyApplication.NAME;
         
         conversation_list_view = new ConversationListView(conversation_list_store);
+        composer_embed = new ComposerEmbed(conversation_viewer);
         
         // This code both loads AND saves the pane positions with live
         // updating. This is more resilient against crashes because
