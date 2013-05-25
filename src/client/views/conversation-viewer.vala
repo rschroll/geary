@@ -1811,5 +1811,10 @@ public class ConversationViewer : Gtk.Box {
             debug("Error updating counter: %s", e.message);
         }
     }
+    
+    // The Composer may need to adjust the mode back to conversation
+    public void show_conversation_div() {
+        set_mode(DisplayMode.CONVERSATION);
+    }
 }
 
