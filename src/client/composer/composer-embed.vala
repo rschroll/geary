@@ -72,6 +72,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
         show_all();
         present();
         this.composer = new_composer;
+        top_window.add_accel_group(composer.ui.get_accel_group());
     }
     
     public bool abandon_existing_composition(ComposerWidget? new_composer = null) {
@@ -111,6 +112,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
     }
     
     private void on_detach() {
+        top_window.remove_accel_group(composer.ui.get_accel_group());
         remove(composer);
         new ComposerWindow(composer);
         composer = null;
@@ -131,6 +133,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
     
     private void close() {
         if (composer != null) {
+            top_window.remove_accel_group(composer.ui.get_accel_group());
             remove(composer);
             composer.destroy();
             composer = null;
