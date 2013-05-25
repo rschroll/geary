@@ -145,14 +145,18 @@ public class ConversationViewer : Gtk.Box {
         }
     }
     
-    public void add_message(Geary.Email email) {
-        // Make sure the message container is showing and the multi-message counter hidden.
+    public void show_message_div() {
         try {
             web_view.show_element_by_id(MESSAGE_CONTAINER_ID);
             web_view.hide_element_by_id(SELECTION_COUNTER_ID);
         } catch (Error e) {
             debug("Error showing/hiding containers: %s", e.message);
         }
+    }
+    
+    public void add_message(Geary.Email email) {
+        // Make sure the message container is showing and the multi-message counter hidden.
+        show_message_div();
 
         if (messages.contains(email))
             return;

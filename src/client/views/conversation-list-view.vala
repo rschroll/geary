@@ -302,6 +302,18 @@ public class ConversationListView : Gtk.TreeView {
         return visible_conversations;
     }
     
+    public Gee.Set<Geary.Conversation> get_selected_conversations() {
+        Gee.HashSet<Geary.Conversation> selected_conversations = new Gee.HashSet<Geary.Conversation>();
+        
+        foreach (Gtk.TreePath path in get_all_selected_paths()) {
+            Geary.Conversation? conversation = conversation_list_store.get_conversation_at_path(path);
+            if (path != null)
+                selected_conversations.add(conversation);
+        }
+        
+        return selected_conversations;
+    }
+    
     // Always returns false, so it can be used as a one-time SourceFunc
     private bool update_visible_conversations() {
         Gee.Set<Geary.Conversation> visible_conversations = get_visible_conversations();
@@ -321,9 +333,10 @@ public class ConversationListView : Gtk.TreeView {
         scheduled_update_visible_conversations = Geary.Scheduler.on_idle(update_visible_conversations);
     }
     
-    // Selects the first conversation, if nothing has been selected yet.
+    // Selects the first conversation, if nothing has been selected yet and we're not composing.
     public void select_first_conversation() {
-        if (get_selected_path() == null) {
+        if (get_selected_path() == null && !((MainWindow) GearyApplication.instance.
+            get_main_window()).composer_embed.is_active) {
             set_cursor(new Gtk.TreePath.from_indices(0, -1), null, false);
         }
     }
@@ -332,6 +345,15 @@ public class ConversationListView : Gtk.TreeView {
         Gtk.TreePath path = conversation_list_store.get_path_for_conversation(conversation);
         if (path != null)
             set_cursor(path, null, false);
+    }
+    
+    public void select_conversations(Gee.Set<Geary.Conversation> conversations) {
+        Gtk.TreeSelection selection = get_selection();
+        foreach (Geary.Conversation conversation in conversations) {
+            Gtk.TreePath path = conversation_list_store.get_path_for_conversation(conversation);
+            if (path != null)
+                selection.select_path(path);
+        }
     }
     
     private void on_row_deleted(Gtk.TreePath path) {
