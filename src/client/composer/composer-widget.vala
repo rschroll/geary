@@ -542,7 +542,13 @@ public class ComposerWidget : Gtk.EventBox {
             visible_on_attachment_drag_over.remove(visible_on_attachment_drag_over_child);
             visible_on_attachment_drag_over.set_size_request(-1, -1);
         }
-   }
+    }
+    
+    // When operating as a plugin, this widet's children may not be properly updated when they
+    // are shown or hidden.  This forces an update of the UI to correct this.
+    private void force_redraw() {
+        resize_children();
+    }
     
     private bool on_drag_motion() {
         show_attachment_overlay(true);
@@ -734,6 +740,8 @@ public class ComposerWidget : Gtk.EventBox {
             }
         }
         pending_attachments_button.hide();
+        
+        force_redraw();
     }
     
     private void attachment_failed(string msg) {
@@ -975,7 +983,7 @@ public class ComposerWidget : Gtk.EventBox {
         GearyApplication.instance.config.compose_as_html = compose_as_html;
     }
     
-    private void toggle_toolbar_buttons(bool show) {
+    public void toggle_toolbar_buttons(bool show) {
         string[] buttons = {"bold button", "italic button", "underline button",
             "strikethrough button", "toolbar separator 1", "toolbar separator 2",
             "link button", "remove format button"};
@@ -986,6 +994,7 @@ public class ComposerWidget : Gtk.EventBox {
             else
                 widget.hide();
         }
+        force_redraw();
     }
     
     private void on_open_menu() {
