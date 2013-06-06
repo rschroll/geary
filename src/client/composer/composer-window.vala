@@ -21,6 +21,7 @@ public class ComposerWindow : Gtk.Window, ComposerContainer {
         
         add_accel_group(composer.ui.get_accel_group());
         show_all();
+        composer.toggle_toolbar_buttons(composer.compose_as_html);
         set_position(Gtk.WindowPosition.CENTER);
     }
     
