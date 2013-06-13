@@ -75,7 +75,8 @@ public class Sidebar.Tree : Gtk.TreeView {
     private bool mask_entry_selected_signal = false;
     private weak EntryWrapper? selected_wrapper = null;
     private Gtk.Menu? default_context_menu = null;
-    private bool is_expander_arrow_action_enabled = true;
+    private bool expander_called_manually = false;
+    private int expander_special_count = 0;
     private bool is_internal_drag_in_progress = false;
     private Sidebar.Entry? internal_drag_source_entry = null;
     private Gtk.TreeRowReference? old_path_ref = null;
@@ -103,6 +104,7 @@ public class Sidebar.Tree : Gtk.TreeView {
         text_column.add_attribute(icon_renderer, "pixbuf", Columns.PIXBUF);
         text_column.add_attribute(icon_renderer, "pixbuf_expander_closed", Columns.CLOSED_PIXBUF);
         text_column.add_attribute(icon_renderer, "pixbuf_expander_open", Columns.OPEN_PIXBUF);
+        text_column.set_cell_data_func(icon_renderer, icon_renderer_function);
         text_renderer = new Gtk.CellRendererText();
         text_renderer.editing_canceled.connect(on_editing_canceled);
         text_renderer.editing_started.connect(on_editing_started);
@@ -123,6 +125,9 @@ public class Sidebar.Tree : Gtk.TreeView {
         Gtk.TreeSelection selection = get_selection();
         selection.set_mode(Gtk.SelectionMode.BROWSE);
         selection.set_select_function(on_selection);
+        
+        test_expand_row.connect(on_toggle_row);
+        test_collapse_row.connect(on_toggle_row);
         
         // It Would Be Nice if the target entries and actions were gleaned by querying each 
         // Sidebar.Entry as it was added, but that's a tad too complicated for our needs
@@ -155,6 +160,14 @@ public class Sidebar.Tree : Gtk.TreeView {
         text_renderer.editing_canceled.disconnect(on_editing_canceled);
         text_renderer.editing_started.disconnect(on_editing_started);
         icon_theme.changed.disconnect(on_theme_change);
+    }
+    
+    public void icon_renderer_function(Gtk.CellLayout layout, Gtk.CellRenderer renderer, Gtk.TreeModel model, Gtk.TreeIter iter) {
+        EntryWrapper? wrapper = get_wrapper_at_iter(iter);
+        if (wrapper == null) {
+            return;
+        }
+        renderer.visible = !(wrapper.entry is Sidebar.Header);
     }
     
     private void on_drag_begin(Gdk.DragContext ctx) {
@@ -320,6 +333,7 @@ public class Sidebar.Tree : Gtk.TreeView {
     }
     
     public void toggle_branch_expansion(Gtk.TreePath path, bool expand_all) {
+        expander_called_manually = true;
         if (is_row_expanded(path))
             collapse_row(path);
         else
@@ -327,6 +341,7 @@ public class Sidebar.Tree : Gtk.TreeView {
     }
     
     public bool expand_to_entry(Sidebar.Entry entry) {
+        expander_called_manually = true;
         EntryWrapper? wrapper = get_wrapper(entry);
         if (wrapper == null)
             return false;
@@ -337,6 +352,7 @@ public class Sidebar.Tree : Gtk.TreeView {
     }
     
     public void expand_to_first_child(Sidebar.Entry entry) {
+        expander_called_manually = true;
         EntryWrapper? wrapper = get_wrapper(entry);
         if (wrapper == null)
             return;
@@ -884,21 +900,45 @@ public class Sidebar.Tree : Gtk.TreeView {
         return true;
     }
     
-    public override bool button_release_event(Gdk.EventButton event) {
-        // see bug 4985
-        if (event.button == 1 && event.type == Gdk.EventType.BUTTON_RELEASE) {
-            if (!is_expander_arrow_action_enabled) {
-                is_expander_arrow_action_enabled = true;
-                return false;
-            }
+    public bool on_toggle_row(Gtk.TreeIter iter, Gtk.TreePath path) {
+        // Determine whether to allow the row to toggle
+        EntryWrapper? wrapper = get_wrapper_at_iter(iter);
+        if (wrapper == null) {
+            return false; // don't affect things
         }
-        return base.button_release_event(event);
+        
+        // Most of the time, only allow manual toggles
+        bool should_allow_toggle = expander_called_manually;
+        
+        // Cancel out the manual flag
+        expander_called_manually = false;
+        
+        // If we are an expanded parent entry with content
+        if (is_row_expanded(path) && store.iter_has_child(iter) && wrapper.entry is Sidebar.SelectableEntry) {
+            // We are taking a special action
+            expander_special_count++;
+            if (expander_special_count == 1) {
+                // Workaround that prevents arrows from double-toggling
+                return true;
+            } else {
+                // Toggle only if non-manual, as opposed to the usual behavior
+                should_allow_toggle = !should_allow_toggle;
+            }
+        } else {
+            // Reset the special behavior count
+            expander_special_count = 0;
+        }
+        
+        if (should_allow_toggle) {
+            return false;
+        }
+        // Prevent branch expansion toggle
+        return true;
     }
     
     public override bool button_press_event(Gdk.EventButton event) {
         Gtk.TreePath? path = get_path_from_event(event);
-        EntryWrapper? wrapper = get_wrapper_at_path(path);
-
+        
         if (event.button == 3 && event.type == Gdk.EventType.BUTTON_PRESS) {
             // single right click
             if (path != null)
@@ -911,12 +951,17 @@ public class Sidebar.Tree : Gtk.TreeView {
                 return base.button_press_event(event);
             }
             
+            EntryWrapper? wrapper = get_wrapper_at_path(path);
+            
+            if (wrapper == null) {
+                old_path_ref = null;
+                return base.button_press_event(event);
+            }
+            
             // Enable single click to toggle tree entries (bug 4985)
-            is_expander_arrow_action_enabled = true;
             if (wrapper.entry is Sidebar.ExpandableEntry
                 || wrapper.entry is Sidebar.InternalDropTargetEntry) {
                 // all labels are InternalDropTargetEntries
-                is_expander_arrow_action_enabled = false;
                 toggle_branch_expansion(path, false);
             }
             
