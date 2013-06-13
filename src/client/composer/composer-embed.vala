@@ -50,7 +50,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
                 conversation_viewer.get_div_id(referred.id)) as WebKit.DOM.HTMLElement;
         if (email_element == null) {
             ConversationListView conversation_list_view = ((MainWindow) GearyApplication.
-                instance.get_main_window()).conversation_list_view;
+                instance.controller.main_window).conversation_list_view;
             prev_selection = conversation_list_view.get_selected_conversations();
             conversation_list_view.get_selection().unselect_all();
             email_element = conversation_viewer.web_view.get_dom_document().get_element_by_id(
@@ -163,7 +163,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
         
         if (prev_selection != null) {
             ConversationListView conversation_list_view = ((MainWindow) GearyApplication.
-                instance.get_main_window()).conversation_list_view;
+                instance.controller.main_window).conversation_list_view;
             if (prev_selection.is_empty)
                 // Need to trigger "No messages selected"
                 conversation_list_view.conversations_selected(prev_selection);

@@ -427,8 +427,8 @@ public class ComposerWidget : Gtk.EventBox {
         chain.append(button_area);
         box.set_focus_chain(chain);
         
-        ((MainWindow) GearyApplication.instance.get_main_window()).composer_embed.new_composer(
-            this, referred);
+        ((MainWindow) GearyApplication.instance.controller.main_window).composer_embed.
+            new_composer(this, referred);
     }
     
     public ComposerWidget.from_mailto(Geary.Account account, string mailto) {
