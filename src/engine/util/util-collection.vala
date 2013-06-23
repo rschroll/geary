@@ -13,6 +13,11 @@ public Gee.ArrayList<G> to_array_list<G>(Gee.Collection<G> c) {
     return list;
 }
 
+public void add_all_array<G>(Gee.Collection<G> c, G[] ar) {
+    foreach (G g in ar)
+        c.add(g);
+}
+
 public G? get_first<G>(Gee.Collection<G> c) {
     Gee.Iterator<G> iter = c.iterator();
     
@@ -29,6 +34,14 @@ public bool are_sets_equal<G>(Gee.Set<G> a, Gee.Set<G> b) {
     }
     
     return true;
+}
+
+/**
+ * Sets the dest Map with all keys and values in src.
+ */
+public void map_set_all<K, V>(Gee.Map<K, V> dest, Gee.Map<K, V> src) {
+    foreach (K key in src.keys)
+        dest.set(key, src.get(key));
 }
 
 /**

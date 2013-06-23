@@ -71,11 +71,6 @@ private class Geary.ImapDB.Account : BaseObject {
         
         // ImapDB.Account holds the Outbox, which is tied to the database it maintains
         outbox = new SmtpOutboxFolder(db, account);
-        
-        // Need to clear duplicate folders due to old bug that caused multiple folders to be
-        // created in the database ... benign due to other logic, but want to prevent this from
-        // happening if possible
-        clear_duplicate_folders();
     }
     
     public async void close_async(Cancellable? cancellable) throws Error {
@@ -96,12 +91,8 @@ private class Geary.ImapDB.Account : BaseObject {
         throws Error {
         check_open();
         
-        Geary.Imap.FolderProperties? properties = imap_folder.get_properties();
-        
-        // properties *must* be available to perform a clone
-        assert(properties != null);
-        
-        Geary.FolderPath path = imap_folder.get_path();
+        Geary.Imap.FolderProperties properties = imap_folder.properties;
+        Geary.FolderPath path = imap_folder.path;
         
         yield db.exec_transaction_async(Db.TransactionType.RW, (cx) => {
             // get the parent of this folder, creating parents if necessary ... ok if this fails,
@@ -116,7 +107,7 @@ private class Geary.ImapDB.Account : BaseObject {
             // create the folder object
             Db.Statement stmt = cx.prepare(
                 "INSERT INTO FolderTable (name, parent_id, last_seen_total, last_seen_status_total, "
-                + "uid_validity, uid_next, attributes) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                + "uid_validity, uid_next, attributes, unread_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             stmt.bind_string(0, path.basename);
             stmt.bind_rowid(1, parent_id);
             stmt.bind_int(2, Numeric.int_floor(properties.select_examine_messages, 0));
@@ -126,6 +117,7 @@ private class Geary.ImapDB.Account : BaseObject {
             stmt.bind_int64(5, (properties.uid_next != null) ? properties.uid_next.value
                 : Imap.UID.INVALID);
             stmt.bind_string(6, properties.attrs.serialize());
+            stmt.bind_int(7, properties.email_unread);
             
             stmt.exec(cancellable);
             
@@ -141,8 +133,8 @@ private class Geary.ImapDB.Account : BaseObject {
         throws Error {
         check_open();
         
-        Geary.Imap.FolderProperties properties = imap_folder.get_properties();
-        Geary.FolderPath path = imap_folder.get_path();
+        Geary.Imap.FolderProperties properties = imap_folder.properties;
+        Geary.FolderPath path = imap_folder.path;
         
         yield db.exec_transaction_async(Db.TransactionType.RW, (cx) => {
             int64 parent_id;
@@ -155,15 +147,17 @@ private class Geary.ImapDB.Account : BaseObject {
             Db.Statement stmt;
             if (parent_id != Db.INVALID_ROWID) {
                 stmt = cx.prepare(
-                    "UPDATE FolderTable SET attributes=? WHERE parent_id=? AND name=?");
+                    "UPDATE FolderTable SET attributes=?, unread_count=? WHERE parent_id=? AND name=?");
                 stmt.bind_string(0, properties.attrs.serialize());
-                stmt.bind_rowid(1, parent_id);
-                stmt.bind_string(2, path.basename);
+                stmt.bind_int(1, properties.email_unread);
+                stmt.bind_rowid(2, parent_id);
+                stmt.bind_string(3, path.basename);
             } else {
                 stmt = cx.prepare(
-                    "UPDATE FolderTable SET attributes=? WHERE parent_id IS NULL AND name=?");
+                    "UPDATE FolderTable SET attributes=?, unread_count=? WHERE parent_id IS NULL AND name=?");
                 stmt.bind_string(0, properties.attrs.serialize());
-                stmt.bind_string(1, path.basename);
+                stmt.bind_int(1, properties.email_unread);
+                stmt.bind_string(2, path.basename);
             }
             
             stmt.exec();
@@ -181,7 +175,7 @@ private class Geary.ImapDB.Account : BaseObject {
         if (db_folder != null) {
             Imap.FolderProperties local_properties = db_folder.get_properties();
             
-            local_properties.unseen = properties.unseen;
+            local_properties.set_status_unseen(properties.unseen);
             local_properties.recent = properties.recent;
             local_properties.attrs = properties.attrs;
             
@@ -198,8 +192,8 @@ private class Geary.ImapDB.Account : BaseObject {
         throws Error {
         check_open();
         
-        Geary.Imap.FolderProperties properties = imap_folder.get_properties();
-        Geary.FolderPath path = imap_folder.get_path();
+        Geary.Imap.FolderProperties properties = imap_folder.properties;
+        Geary.FolderPath path = imap_folder.path;
         
         yield db.exec_transaction_async(Db.TransactionType.RW, (cx) => {
             int64 parent_id;
@@ -245,7 +239,7 @@ private class Geary.ImapDB.Account : BaseObject {
         if (db_folder != null) {
             Imap.FolderProperties local_properties = db_folder.get_properties();
             
-            local_properties.unseen = properties.unseen;
+            local_properties.set_status_unseen(properties.unseen);
             local_properties.recent = properties.recent;
             local_properties.uid_validity = properties.uid_validity;
             local_properties.uid_next = properties.uid_next;
@@ -330,7 +324,7 @@ private class Geary.ImapDB.Account : BaseObject {
                     : new Geary.FolderRoot(basename, "/", Geary.Imap.Folder.CASE_SENSITIVE);
                 
                 Geary.Imap.FolderProperties properties = new Geary.Imap.FolderProperties(
-                    result.int_for("last_seen_total"), 0, 0,
+                    result.int_for("last_seen_total"), 0,
                     new Imap.UIDValidity(result.int64_for("uid_validity")),
                     new Imap.UID(result.int64_for("uid_next")),
                     Geary.Imap.MailboxAttributes.deserialize(result.string_for("attributes")));
@@ -354,7 +348,7 @@ private class Geary.ImapDB.Account : BaseObject {
         
         if (id_map.size == 0) {
             throw new EngineError.NOT_FOUND("No local folders in %s",
-                (parent != null) ? parent.get_fullpath() : "root");
+                (parent != null) ? parent.to_string() : "root");
         }
         
         Gee.Collection<Geary.ImapDB.Folder> folders = new Gee.ArrayList<Geary.ImapDB.Folder>();
@@ -417,7 +411,7 @@ private class Geary.ImapDB.Account : BaseObject {
             
             Db.Result results = stmt.exec(cancellable);
             if (!results.finished) {
-                properties = new Imap.FolderProperties(results.int_for("last_seen_total"), 0, 0,
+                properties = new Imap.FolderProperties(results.int_for("last_seen_total"), 0,
                     new Imap.UIDValidity(results.int64_for("uid_validity")),
                     new Imap.UID(results.int64_for("uid_next")),
                     Geary.Imap.MailboxAttributes.deserialize(results.string_for("attributes")));
@@ -440,8 +434,19 @@ private class Geary.ImapDB.Account : BaseObject {
     
     private Geary.ImapDB.Folder? get_local_folder(Geary.FolderPath path) {
         FolderReference? folder_ref = folder_refs.get(path);
+        if (folder_ref == null)
+            return null;
         
-        return (folder_ref != null) ? (Geary.ImapDB.Folder) folder_ref.get_reference() : null;
+        ImapDB.Folder? folder = (Geary.ImapDB.Folder?) folder_ref.get_reference();
+        if (folder == null)
+            return null;
+        
+        // use supplied FolderPath rather than one here; if it came from the server, it has
+        // a usable separator
+        if (path.get_root().default_separator != null)
+            folder.set_path(path);
+        
+        return folder;
     }
     
     private Geary.ImapDB.Folder create_local_folder(Geary.FolderPath path, int64 folder_id,
@@ -566,46 +571,6 @@ private class Geary.ImapDB.Account : BaseObject {
             
             return Db.TransactionOutcome.COMMIT;
         }, cancellable);
-    }
-    
-    private void clear_duplicate_folders() {
-        int count = 0;
-        
-        try {
-            // Find all folders with duplicate names
-            Db.Result result = db.query("SELECT id, name FROM FolderTable WHERE name IN "
-                + "(SELECT name FROM FolderTable GROUP BY name HAVING (COUNT(name) > 1))");
-            while (!result.finished) {
-                int64 id = result.int64_at(0);
-                
-                // see if any folders have this folder as a parent OR if there are messages associated
-                // with this folder
-                Db.Statement child_stmt = db.prepare("SELECT id FROM FolderTable WHERE parent_id=?");
-                child_stmt.bind_int64(0, id);
-                Db.Result child_result = child_stmt.exec();
-                
-                Db.Statement message_stmt = db.prepare(
-                    "SELECT id FROM MessageLocationTable WHERE folder_id=?");
-                message_stmt.bind_int64(0, id);
-                Db.Result message_result = message_stmt.exec();
-                
-                if (child_result.finished && message_result.finished) {
-                    // no children, delete it
-                    Db.Statement delete_stmt = db.prepare("DELETE FROM FolderTable WHERE id=?");
-                    delete_stmt.bind_int64(0, id);
-                    
-                    delete_stmt.exec();
-                    count++;
-                }
-                
-                result.next();
-            }
-        } catch (Error err) {
-            debug("Error attempting to clear duplicate folders from account: %s", err.message);
-        }
-        
-        if (count > 0)
-            debug("Deleted %d duplicate folders", count);
     }
     
     //
@@ -733,10 +698,8 @@ private class Geary.ImapDB.Account : BaseObject {
             return null;
         }
         
-        if (parent_id <= 0) {
-            return new Geary.FolderRoot(name,
-                Geary.Imap.Account.ASSUMED_SEPARATOR, Geary.Imap.Folder.CASE_SENSITIVE);
-        }
+        if (parent_id <= 0)
+            return new Geary.FolderRoot(name, null, Geary.Imap.Folder.CASE_SENSITIVE);
         
         Geary.FolderPath? parent_path = do_find_folder_path(cx, parent_id, cancellable);
         return (parent_path == null ? null : parent_path.get_child(name));

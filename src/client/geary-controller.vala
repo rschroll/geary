@@ -818,18 +818,6 @@ public class GearyController {
         
         selected_conversations = selected;
         conversations_selected(selected_conversations, current_folder);
-        
-        // Disable message buttons until conversation loads.
-        enable_message_buttons(false);
-        
-        if (selected.size > 1 && current_folder != null) {
-            main_window.conversation_viewer.show_multiple_selected(selected.size);
-            if (selected.size > 1) {
-                enable_multiple_message_buttons();
-            } else {
-                enable_message_buttons(false);
-            }
-        }
     }
     
     private void on_special_folder_type_changed(Geary.Folder folder, Geary.SpecialFolderType old_type,
@@ -1007,14 +995,11 @@ public class GearyController {
     }
     
     private void on_accounts() {
-        AccountDialog dialog = new AccountDialog();
-        dialog.run();
-        dialog.destroy();
+        AccountDialog.show_instance();
     }
     
     private void on_preferences() {
-        PreferencesDialog dialog = new PreferencesDialog(GearyApplication.instance.config);
-        dialog.run();
+        PreferencesDialog.show_instance();
     }
 
     private Gee.List<Geary.EmailIdentifier> get_selected_folder_email_ids(
