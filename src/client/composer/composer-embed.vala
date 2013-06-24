@@ -44,23 +44,22 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
         if (!abandon_existing_composition(new_composer))
             return;
         
-        WebKit.DOM.HTMLElement? email_element = null;
-        if (referred != null)
-            email_element = conversation_viewer.web_view.get_dom_document().get_element_by_id(
-                conversation_viewer.get_div_id(referred.id)) as WebKit.DOM.HTMLElement;
-        if (email_element == null) {
+        if (referred != null) {
+            conversation_viewer.show_only_emails({referred.id});
+        } else {
             ConversationListView conversation_list_view = ((MainWindow) GearyApplication.
                 instance.controller.main_window).conversation_list_view;
             prev_selection = conversation_list_view.get_selected_conversations();
             conversation_list_view.get_selection().unselect_all();
-            email_element = conversation_viewer.web_view.get_dom_document().get_element_by_id(
-                "placeholder") as WebKit.DOM.HTMLElement;
         }
+        
+        WebKit.DOM.HTMLElement placeholder = conversation_viewer.web_view.get_dom_document().
+            get_element_by_id("placeholder") as WebKit.DOM.HTMLElement;
         
         try {
             conversation_viewer.show_message_div();
             conversation_viewer.web_view.settings.enable_plugins = true;
-            email_element.insert_adjacent_html("afterend",
+            placeholder.insert_adjacent_html("beforebegin",
                 @"<div id='$embed_id'><embed type='composer' /></div>");
         } catch (Error error) {
             debug("Error creating embed element: %s", error.message);
