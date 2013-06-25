@@ -18,6 +18,18 @@ public abstract class Geary.MessageData.AbstractMessageData : BaseObject {
     public abstract string to_string();
 }
 
+/**
+ * Allows message data fields to define how they'll expose themselves to search
+ * queries.
+ */
+public interface Geary.MessageData.SearchableMessageData {
+    /**
+     * Return a string representing the data as a corpus of text to be searched
+     * against.  Return values from this may be stored in the search index.
+     */
+    public abstract string to_searchable_string();
+}
+
 public abstract class Geary.MessageData.StringMessageData : AbstractMessageData,
     Gee.Hashable<StringMessageData> {
     public string value { get; private set; }
@@ -130,15 +142,15 @@ public abstract class Geary.MessageData.Int64MessageData : AbstractMessageData,
 
 public abstract class Geary.MessageData.BlockMessageData : AbstractMessageData {
     public string data_name { get; private set; }
-    public Geary.Memory.AbstractBuffer buffer { get; private set; }
+    public Geary.Memory.Buffer buffer { get; private set; }
     
-    public BlockMessageData(string data_name, Geary.Memory.AbstractBuffer buffer) {
+    public BlockMessageData(string data_name, Geary.Memory.Buffer buffer) {
         this.data_name = data_name;
         this.buffer = buffer;
     }
     
     public override string to_string() {
-        return "%s (%lub)".printf(data_name, buffer.get_size());
+        return "%s (%lub)".printf(data_name, buffer.size);
     }
 }
 

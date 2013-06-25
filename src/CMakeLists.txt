@@ -11,6 +11,7 @@ common/common-yorba-application.vala
 set(ENGINE_SRC
 engine/abstract/geary-abstract-account.vala
 engine/abstract/geary-abstract-folder.vala
+engine/abstract/geary-abstract-local-folder.vala
 
 engine/api/geary-account.vala
 engine/api/geary-account-information.vala
@@ -45,6 +46,8 @@ engine/api/geary-folder-supports-remove.vala
 engine/api/geary-logging.vala
 engine/api/geary-named-flag.vala
 engine/api/geary-named-flags.vala
+engine/api/geary-progress-monitor.vala
+engine/api/geary-search-folder.vala
 engine/api/geary-service-provider.vala
 engine/api/geary-special-folder-type.vala
 
@@ -71,6 +74,7 @@ engine/imap/api/imap-email-identifier.vala
 engine/imap/api/imap-email-properties.vala
 engine/imap/api/imap-folder-properties.vala
 engine/imap/api/imap-folder.vala
+engine/imap/command/imap-append-command.vala
 engine/imap/command/imap-capability-command.vala
 engine/imap/command/imap-close-command.vala
 engine/imap/command/imap-command.vala
@@ -182,6 +186,16 @@ engine/imap-engine/replay-ops/imap-engine-replay-removal.vala
 engine/imap-engine/yahoo/imap-engine-yahoo-account.vala
 engine/imap-engine/yahoo/imap-engine-yahoo-folder.vala
 
+engine/memory/memory-buffer.vala
+engine/memory/memory-byte-buffer.vala
+engine/memory/memory-empty-buffer.vala
+engine/memory/memory-file-buffer.vala
+engine/memory/memory-growable-buffer.vala
+engine/memory/memory-string-buffer.vala
+engine/memory/memory-unowned-byte-array-buffer.vala
+engine/memory/memory-unowned-bytes-buffer.vala
+engine/memory/memory-unowned-string-buffer.vala
+
 engine/nonblocking/nonblocking-abstract-semaphore.vala
 engine/nonblocking/nonblocking-batch.vala
 engine/nonblocking/nonblocking-counting-semaphore.vala
@@ -229,7 +243,6 @@ engine/util/util-generic-capabilities.vala
 engine/util/util-html.vala
 engine/util/util-imap-utf7.vala
 engine/util/util-inet.vala
-engine/util/util-memory.vala
 engine/util/util-numeric.vala
 engine/util/util-object.vala
 engine/util/util-reference-semantics.vala
@@ -272,11 +285,13 @@ client/dialogs/attachment-dialog.vala
 client/dialogs/password-dialog.vala
 client/dialogs/preferences-dialog.vala
 
+client/folder-list/folder-list-abstract-folder-entry.vala
 client/folder-list/folder-list-account-branch.vala
 client/folder-list/folder-list-folder-entry.vala
 client/folder-list/folder-list-tree.vala
 client/folder-list/folder-list-inboxes-branch.vala
 client/folder-list/folder-list-inbox-folder-entry.vala
+client/folder-list/folder-list-search-branch.vala
 client/folder-list/folder-list-special-grouping.vala
 
 client/models/conversation-list-store.vala
@@ -297,6 +312,7 @@ client/ui/folder-menu.vala
 client/ui/icon-factory.vala
 client/ui/main-toolbar.vala
 client/ui/main-window.vala
+client/ui/monitored-progress-bar.vala
 
 client/util/util-date.vala
 client/util/util-email.vala
@@ -392,11 +408,12 @@ pkg_check_modules(DEPS REQUIRED
     gmime-2.6>=2.6.0
     libsecret-1>=0.11
     webkitgtk-3.0>=1.10.0
+    libxml-2.0>=2.7.8
     ${EXTRA_CLIENT_PKG_CONFIG}
 )
 
 set(ENGINE_PACKAGES
-    glib-2.0 gee-0.8 gio-2.0 gmime-2.6 unique-3.0 posix sqlite3
+    glib-2.0 gee-0.8 gio-2.0 gmime-2.6 unique-3.0 posix sqlite3 libxml-2.0
 )
 
 set(CLIENT_PACKAGES
@@ -474,7 +491,7 @@ OPTIONS
 )
 
 add_library(geary-static STATIC ${ENGINE_VALA_C})
-target_link_libraries(geary-static ${DEPS_LIBRARIES} gthread-2.0)
+target_link_libraries(geary-static ${DEPS_LIBRARIES} sqlite3-unicodesn gthread-2.0)
 
 # Geary client app
 #################################################
@@ -612,3 +629,4 @@ set_property(
         gearyd
 )
 
+add_subdirectory(sqlite3-unicodesn)

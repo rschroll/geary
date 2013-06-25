@@ -11,16 +11,16 @@
 // on the ImapDB.Database.  SmtpOutboxFolder assumes the database is opened before it's passed in
 // to the constructor -- it does not open or close the database itself and will start using it
 // immediately.
-private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport.Remove,
+private class Geary.SmtpOutboxFolder : Geary.AbstractLocalFolder, Geary.FolderSupport.Remove,
     Geary.FolderSupport.Create {
     private class OutboxRow {
         public int64 id;
         public int position;
         public int64 ordering;
-        public string? message;
+        public Memory.Buffer? message;
         public SmtpOutboxEmailIdentifier outbox_id;
         
-        public OutboxRow(int64 id, int position, int64 ordering, string? message) {
+        public OutboxRow(int64 id, int position, int64 ordering, Memory.Buffer? message) {
             assert(position >= 1);
             
             this.id = id;
@@ -43,7 +43,6 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
     private ImapDB.Database db;
     private weak Account _account;
     private Geary.Smtp.ClientSession smtp;
-    private int open_count = 0;
     private Nonblocking.Mailbox<OutboxRow> outbox_queue = new Nonblocking.Mailbox<OutboxRow>();
     private SmtpOutboxFolderProperties _properties = new SmtpOutboxFolderProperties(0, 0);
     
@@ -84,7 +83,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
                 int position = 1;
                 while (!results.finished) {
                     list.add(new OutboxRow(results.rowid_at(0), position++, results.int64_at(1),
-                        results.string_at(2)));
+                        results.string_buffer_at(2)));
                     results.next(cancellable);
                 }
                 
@@ -118,7 +117,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
             // Convert row into RFC822 message suitable for sending or framing
             RFC822.Message message;
             try {
-                message = new RFC822.Message.from_string(row.message);
+                message = new RFC822.Message.from_buffer(row.message);
             } catch (RFC822Error msg_err) {
                 // TODO: This needs to be reported to the user
                 debug("Outbox postman message error: %s", msg_err.message);
@@ -205,35 +204,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
     }
     
     public override Geary.Folder.OpenState get_open_state() {
-        return open_count > 0 ? Geary.Folder.OpenState.LOCAL : Geary.Folder.OpenState.CLOSED;
-    }
-    
-    private void check_open() throws EngineError {
-        if (open_count == 0)
-            throw new EngineError.OPEN_REQUIRED("%s not open", to_string());
-    }
-    
-    public override async void wait_for_open_async(Cancellable? cancellable = null) throws Error {
-        if (open_count == 0)
-            throw new EngineError.OPEN_REQUIRED("Outbox not open");
-    }
-    
-    public override async bool open_async(Geary.Folder.OpenFlags open_flags, Cancellable? cancellable = null)
-        throws Error {
-        if (open_count++ > 0)
-            return false;
-        
-        notify_opened(Geary.Folder.OpenState.LOCAL, properties.email_total);
-        
-        return true;
-    }
-    
-    public override async void close_async(Cancellable? cancellable = null) throws Error {
-        if (open_count == 0 || --open_count > 0)
-            return;
-        
-        notify_closed(Geary.Folder.CloseReason.LOCAL_CLOSE);
-        notify_closed(Geary.Folder.CloseReason.FOLDER_CLOSED);
+        return is_open() ? Geary.Folder.OpenState.LOCAL : Geary.Folder.OpenState.CLOSED;
     }
     
     private async int get_email_count_async(Cancellable? cancellable) throws Error {
@@ -270,7 +241,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
             assert(!results.finished);
             
             int64 ordering = results.int64_at(0);
-            string message = results.string_at(1);
+            Memory.Buffer message = results.string_buffer_at(1);
             
             int position = do_get_position_by_ordering(cx, ordering, cancellable);
             
@@ -290,12 +261,12 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
         outbox_queue.send(row);
         
         // notify only if opened
-        if (open_count > 0) {
+        if (is_open()) {
             Gee.List<SmtpOutboxEmailIdentifier> list = new Gee.ArrayList<SmtpOutboxEmailIdentifier>();
             list.add(row.outbox_id);
             
             notify_email_appended(list);
-            notify_email_count_changed(email_count, CountChangeReason.ADDED);
+            notify_email_count_changed(email_count, CountChangeReason.APPENDED);
         }
         
         return row.outbox_id;
@@ -336,7 +307,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
             int position = low;
             do {
                 list.add(row_to_email(new OutboxRow(results.rowid_at(0), position++, results.int64_at(1),
-                    results.string_at(2))));
+                    results.string_buffer_at(2))));
             } while (results.next());
             
             return Db.TransactionOutcome.DONE;
@@ -381,7 +352,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
                 }
                 
                 list.add(row_to_email(new OutboxRow(results.rowid_at(0), position++, ordering,
-                    results.string_at(2))));
+                    results.string_buffer_at(2))));
             } while (results.next());
             
             return Db.TransactionOutcome.DONE;
@@ -498,7 +469,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
             return false;
         
         // notify only if opened
-        if (open_count > 0) {
+        if (is_open()) {
             notify_email_removed(removed);
             notify_email_count_changed(final_count, CountChangeReason.REMOVED);
         }
@@ -516,7 +487,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
     
     // Utility for getting an email object back from an outbox row.
     private Geary.Email row_to_email(OutboxRow row) throws Error {
-        RFC822.Message message = new RFC822.Message.from_string(row.message);
+        RFC822.Message message = new RFC822.Message.from_buffer(row.message);
         
         Geary.Email email = message.get_email(row.position, row.outbox_id);
         // TODO: Determine message's total size (header + body) to store in Properties.
@@ -601,7 +572,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractFolder, Geary.FolderSupport
         if (position < 1)
             return null;
         
-        return new OutboxRow(results.rowid_at(0), position, ordering, results.string_at(1));
+        return new OutboxRow(results.rowid_at(0), position, ordering, results.string_buffer_at(1));
     }
     
     private bool do_remove_email(Db.Connection cx, SmtpOutboxEmailIdentifier id, Cancellable? cancellable)

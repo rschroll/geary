@@ -25,14 +25,15 @@ private class Geary.ImapDB.MessageRow {
     
     public string? subject { get; set; default = null; }
     
-    public string? header { get; set; default = null; }
+    public Memory.Buffer? header { get; set; default = null; }
     
-    public string? body { get; set; default = null; }
+    public Memory.Buffer? body { get; set; default = null; }
     
     public string? preview { get; set; default = null; }
     
     public string? email_flags { get; set; default = null; }
     public string? internaldate { get; set; default = null; }
+    public time_t internaldate_time_t { get; set; default = -1; }
     public long rfc822_size { get; set; default = -1; }
     
     public MessageRow() {
@@ -78,10 +79,10 @@ private class Geary.ImapDB.MessageRow {
             subject = results.string_for("subject");
         
         if (fields.is_all_set(Geary.Email.Field.HEADER))
-            header = results.string_for("header");
+            header = results.string_buffer_for("header");
         
         if (fields.is_all_set(Geary.Email.Field.BODY))
-            body = results.string_for("body");
+            body = results.string_buffer_for("body");
         
         if (fields.is_all_set(Geary.Email.Field.PREVIEW))
             preview = results.string_for("preview");
@@ -91,6 +92,7 @@ private class Geary.ImapDB.MessageRow {
         
         if (fields.is_all_set(Geary.Email.Field.PROPERTIES)) {
             internaldate = results.string_for("internaldate");
+            internaldate_time_t = (time_t) results.int64_for("internaldate_time_t");
             rfc822_size = results.long_for("rfc822_size");
         }
     }
@@ -125,10 +127,10 @@ private class Geary.ImapDB.MessageRow {
             email.set_message_subject(new RFC822.Subject.decode(subject ?? ""));
         
         if (fields.is_all_set(Geary.Email.Field.HEADER))
-            email.set_message_header(new RFC822.Header(new Geary.Memory.StringBuffer(header ?? "")));
+            email.set_message_header(new RFC822.Header(header ?? Memory.EmptyBuffer.instance));
         
         if (fields.is_all_set(Geary.Email.Field.BODY))
-            email.set_message_body(new RFC822.Text(new Geary.Memory.StringBuffer(body ?? "")));
+            email.set_message_body(new RFC822.Text(body ?? Memory.EmptyBuffer.instance));
         
         if (fields.is_all_set(Geary.Email.Field.PREVIEW))
             email.set_message_preview(new RFC822.PreviewText(new Geary.Memory.StringBuffer(preview ?? "")));
@@ -215,13 +217,13 @@ private class Geary.ImapDB.MessageRow {
         }
         
         if (email.fields.is_all_set(Geary.Email.Field.HEADER)) {
-            header = (email.header != null) ? email.header.buffer.to_string() : null;
+            header = (email.header != null) ? email.header.buffer : null;
             
             fields = fields.set(Geary.Email.Field.HEADER);
         }
         
         if (email.fields.is_all_set(Geary.Email.Field.BODY)) {
-            body = (email.body != null) ? email.body.buffer.to_string() : null;
+            body = (email.body != null) ? email.body.buffer : null;
             
             fields = fields.set(Geary.Email.Field.BODY);
         }
@@ -242,6 +244,7 @@ private class Geary.ImapDB.MessageRow {
         if (email.fields.is_all_set(Geary.Email.Field.PROPERTIES)) {
             Geary.Imap.EmailProperties? imap_properties = (Geary.Imap.EmailProperties) email.properties;
             internaldate = (imap_properties != null) ? imap_properties.internaldate.original : null;
+            internaldate_time_t = (imap_properties != null) ? imap_properties.internaldate.as_time_t : -1;
             rfc822_size = (imap_properties != null) ? imap_properties.rfc822_size.value : -1;
             
             fields = fields.set(Geary.Email.Field.PROPERTIES);
