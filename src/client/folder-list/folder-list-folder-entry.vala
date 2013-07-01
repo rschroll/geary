@@ -12,12 +12,12 @@ public class FolderList.FolderEntry : FolderList.AbstractFolderEntry, Sidebar.In
     public FolderEntry(Geary.Folder folder) {
         base(folder);
         has_new = false;
-        folder.properties.notify[Geary.FolderProperties.PROP_NAME_EMAIL_UNDREAD].connect(
+        folder.properties.notify[Geary.FolderProperties.PROP_NAME_EMAIL_UNREAD].connect(
             on_email_unread_count_changed);
     }
     
     ~FolderEntry() {
-        folder.properties.notify[Geary.FolderProperties.PROP_NAME_EMAIL_UNDREAD].disconnect(
+        folder.properties.notify[Geary.FolderProperties.PROP_NAME_EMAIL_UNREAD].disconnect(
             on_email_unread_count_changed);
     }
     
@@ -35,7 +35,7 @@ public class FolderList.FolderEntry : FolderList.AbstractFolderEntry, Sidebar.In
     }
     
     public override Icon? get_sidebar_icon() {
-        switch (folder.get_special_folder_type()) {
+        switch (folder.special_folder_type) {
             case Geary.SpecialFolderType.NONE:
                 return IconFactory.instance.get_custom_icon("tag", IconFactory.ICON_SIDEBAR);
             

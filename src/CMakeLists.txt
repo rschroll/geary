@@ -24,7 +24,6 @@ engine/api/geary-contact-flags.vala
 engine/api/geary-contact-importance.vala
 engine/api/geary-contact-store.vala
 engine/api/geary-conversation.vala
-engine/api/geary-conversation-monitor.vala
 engine/api/geary-credentials.vala
 engine/api/geary-credentials-mediator.vala
 engine/api/geary-email-flags.vala
@@ -50,6 +49,19 @@ engine/api/geary-progress-monitor.vala
 engine/api/geary-search-folder.vala
 engine/api/geary-service-provider.vala
 engine/api/geary-special-folder-type.vala
+
+engine/app/app-conversation-monitor.vala
+
+engine/app/conversation-monitor/app-append-operation.vala
+engine/app/conversation-monitor/app-conversation-operation-queue.vala
+engine/app/conversation-monitor/app-conversation-operation.vala
+engine/app/conversation-monitor/app-fill-window-operation.vala
+engine/app/conversation-monitor/app-impl-conversation.vala
+engine/app/conversation-monitor/app-local-load-operation.vala
+engine/app/conversation-monitor/app-local-search-operation.vala
+engine/app/conversation-monitor/app-remove-operation.vala
+engine/app/conversation-monitor/app-reseed-operation.vala
+engine/app/conversation-monitor/app-terminate-operation.vala
 
 engine/common/common-message-data.vala
 
@@ -90,6 +102,9 @@ engine/imap/command/imap-login-command.vala
 engine/imap/command/imap-logout-command.vala
 engine/imap/command/imap-message-set.vala
 engine/imap/command/imap-noop-command.vala
+engine/imap/command/imap-search-command.vala
+engine/imap/command/imap-search-criteria.vala
+engine/imap/command/imap-search-criterion.vala
 engine/imap/command/imap-select-command.vala
 engine/imap/command/imap-starttls-command.vala
 engine/imap/command/imap-status-command.vala
@@ -113,6 +128,7 @@ engine/imap/parameter/imap-atom-parameter.vala
 engine/imap/parameter/imap-list-parameter.vala
 engine/imap/parameter/imap-literal-parameter.vala
 engine/imap/parameter/imap-nil-parameter.vala
+engine/imap/parameter/imap-number-parameter.vala
 engine/imap/parameter/imap-parameter.vala
 engine/imap/parameter/imap-quoted-string-parameter.vala
 engine/imap/parameter/imap-root-parameters.vala

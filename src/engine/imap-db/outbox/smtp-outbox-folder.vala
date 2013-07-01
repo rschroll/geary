@@ -32,13 +32,26 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractLocalFolder, Geary.FolderSu
         }
     }
     
-    public signal void report_problem(Geary.Account.Problem problem, Error? err);
+    public override Account account { get { return _account; } }
+    
+    public override FolderProperties properties { get { return _properties; } }
+    
+    private FolderPath? _path = null;
+    public override FolderPath path {
+        get {
+            return (_path != null) ? _path : _path = new SmtpOutboxFolderRoot();
+        }
+    }
+    
+    public override SpecialFolderType special_folder_type {
+        get {
+            return Geary.SpecialFolderType.OUTBOX;
+        }
+    }
     
     // Min and max times between attempting to re-send after a connection failure.
     private const uint MIN_SEND_RETRY_INTERVAL_SEC = 4;
     private const uint MAX_SEND_RETRY_INTERVAL_SEC = 64;
-
-    private static FolderRoot? path = null;
     
     private ImapDB.Database db;
     private weak Account _account;
@@ -46,9 +59,7 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractLocalFolder, Geary.FolderSu
     private Nonblocking.Mailbox<OutboxRow> outbox_queue = new Nonblocking.Mailbox<OutboxRow>();
     private SmtpOutboxFolderProperties _properties = new SmtpOutboxFolderProperties(0, 0);
     
-    public override Account account { get { return _account; } }
-    
-    public override FolderProperties properties { get { return _properties; } }
+    public signal void report_problem(Geary.Account.Problem problem, Error? err);
     
     // Requires the Database from the get-go because it runs a background task that access it
     // whether open or not
@@ -192,17 +203,6 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractLocalFolder, Geary.FolderSu
         debug("Exiting outbox postman");
     }
     
-    public override Geary.FolderPath get_path() {
-        if (path == null)
-            path = new SmtpOutboxFolderRoot();
-        
-        return path;
-    }
-    
-    public override Geary.SpecialFolderType get_special_folder_type() {
-        return Geary.SpecialFolderType.OUTBOX;
-    }
-    
     public override Geary.Folder.OpenState get_open_state() {
         return is_open() ? Geary.Folder.OpenState.LOCAL : Geary.Folder.OpenState.CLOSED;
     }
@@ -226,10 +226,11 @@ private class Geary.SmtpOutboxFolder : Geary.AbstractLocalFolder, Geary.FolderSu
         int email_count = 0;
         OutboxRow? row = null;
         yield db.exec_transaction_async(Db.TransactionType.WR, (cx) => {
+            // save in database ready for SMTP, but without dot-stuffing
             Db.Statement stmt = cx.prepare(
                 "INSERT INTO SmtpOutboxTable (message, ordering)"
                 + "VALUES (?, (SELECT COALESCE(MAX(ordering), 0) + 1 FROM SmtpOutboxTable))");
-            stmt.bind_string(0, rfc822.get_body_rfc822_buffer().to_string());
+            stmt.bind_string_buffer(0, rfc822.get_body_rfc822_buffer_smtp(false));
             
             int64 id = stmt.exec_insert(cancellable);
             
