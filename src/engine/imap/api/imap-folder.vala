@@ -24,7 +24,7 @@ private class Geary.Imap.Folder : BaseObject {
     private Nonblocking.Mutex cmd_mutex = new Nonblocking.Mutex();
     private Gee.HashMap<SequenceNumber, FetchedData> fetch_accumulator = new Gee.HashMap<
         SequenceNumber, FetchedData>();
-    private Gee.HashSet<Geary.EmailIdentifier> search_accumulator = new Gee.HashSet<Geary.EmailIdentifier>();
+    private Gee.TreeSet<Geary.EmailIdentifier> search_accumulator = new Gee.TreeSet<Geary.EmailIdentifier>();
     
     /**
      * A (potentially unsolicited) response from the server.
@@ -261,7 +261,7 @@ private class Geary.Imap.Folder : BaseObject {
     // All commands must executed inside the cmd_mutex; returns FETCH or STORE results
     private async void exec_commands_async(Gee.Collection<Command> cmds,
         out Gee.HashMap<SequenceNumber, FetchedData>? fetched,
-        out Gee.HashSet<Geary.EmailIdentifier>? search_results, Cancellable? cancellable) throws Error {
+        out Gee.TreeSet<Geary.EmailIdentifier>? search_results, Cancellable? cancellable) throws Error {
         int token = yield cmd_mutex.claim_async(cancellable);
         
         // execute commands with mutex locked
@@ -283,7 +283,7 @@ private class Geary.Imap.Folder : BaseObject {
         
         if (search_accumulator.size > 0) {
             search_results = search_accumulator;
-            search_accumulator = new Gee.HashSet<Geary.EmailIdentifier>();
+            search_accumulator = new Gee.TreeSet<Geary.EmailIdentifier>();
         } else {
             search_results = null;
         }
@@ -431,8 +431,10 @@ private class Geary.Imap.Folder : BaseObject {
                     partial_header_identifier, body_identifier, preview_identifier,
                     preview_charset_identifier);
                 if (!email.fields.fulfills(fields)) {
-                    debug("%s: %s missing=%s fetched=%s", to_string(), email.id.to_string(),
+                    message("%s: %s missing=%s fetched=%s", to_string(), email.id.to_string(),
                         fields.clear(email.fields).to_list_string(), fetched_data.to_string());
+                    
+                    continue;
                 }
                 
                 email_list.add(email);
@@ -522,7 +524,7 @@ private class Geary.Imap.Folder : BaseObject {
         yield exec_commands_async(cmds, null, null, cancellable);
     }
     
-    public async Gee.Set<Geary.EmailIdentifier>? search_async(SearchCriteria criteria,
+    public async Gee.SortedSet<Geary.EmailIdentifier>? search_async(SearchCriteria criteria,
         Cancellable? cancellable) throws Error {
         check_open();
         
@@ -530,7 +532,7 @@ private class Geary.Imap.Folder : BaseObject {
         Gee.Collection<Command> cmds = new Gee.ArrayList<Command>();
         cmds.add(new SearchCommand(criteria, true));
         
-        Gee.HashSet<Geary.EmailIdentifier>? search_results;
+        Gee.TreeSet<Geary.EmailIdentifier>? search_results;
         yield exec_commands_async(cmds, null, out search_results, cancellable);
         
         return (search_results != null && search_results.size > 0) ? search_results : null;
@@ -616,8 +618,8 @@ private class Geary.Imap.Folder : BaseObject {
         FetchBodyDataIdentifier? partial_header_identifier, FetchBodyDataIdentifier? body_identifier,
         FetchBodyDataIdentifier? preview_identifier, FetchBodyDataIdentifier? preview_charset_identifier)
         throws Error {
-        Geary.Email email = new Geary.Email(fetched_data.seq_num.value,
-            new Imap.EmailIdentifier(uid, path));
+        Geary.Email email = new Geary.Email(new Imap.EmailIdentifier(uid, path));
+        email.position = fetched_data.seq_num.value;
         
         // accumulate these to submit Imap.EmailProperties all at once
         InternalDate? internaldate = null;
@@ -679,27 +681,27 @@ private class Geary.Imap.Folder : BaseObject {
             email.set_email_properties(new Geary.Imap.EmailProperties(internaldate, rfc822_size));
         
         // if the header was requested, convert its fields now
-        if (partial_header_identifier != null) {
-            if (!fetched_data.body_data_map.has_key(partial_header_identifier)) {
-                debug("[%s] No partial header identifier \"%s\" found:", to_string(),
-                    partial_header_identifier.to_string());
-                foreach (FetchBodyDataIdentifier id in fetched_data.body_data_map.keys)
-                    debug("[%s] has %s", to_string(), id.to_string());
-            }
-            assert(fetched_data.body_data_map.has_key(partial_header_identifier));
-            
+        bool has_partial_header = fetched_data.body_data_map.has_key(partial_header_identifier);
+        if (partial_header_identifier != null && !has_partial_header) {
+            message("[%s] No partial header identifier \"%s\" found:", to_string(),
+                partial_header_identifier.to_string());
+            foreach (FetchBodyDataIdentifier id in fetched_data.body_data_map.keys)
+                message("[%s] has %s", to_string(), id.to_string());
+        } else if (partial_header_identifier != null && has_partial_header) {
             RFC822.Header headers = new RFC822.Header(
                 fetched_data.body_data_map.get(partial_header_identifier));
             
             // DATE
-            if (!email.fields.is_all_set(Geary.Email.Field.DATE)) {
+            if (required_but_not_set(Geary.Email.Field.DATE, required_fields, email)) {
                 string? value = headers.get_header("Date");
                 if (!String.is_empty(value))
                     email.set_send_date(new RFC822.Date(value));
+                else
+                    email.set_send_date(null);
             }
             
             // ORIGINATORS
-            if (!email.fields.is_all_set(Geary.Email.Field.ORIGINATORS)) {
+            if (required_but_not_set(Geary.Email.Field.ORIGINATORS, required_fields, email)) {
                 RFC822.MailboxAddresses? from = null;
                 string? value = headers.get_header("From");
                 if (!String.is_empty(value))
@@ -715,12 +717,11 @@ private class Geary.Imap.Folder : BaseObject {
                 if (!String.is_empty(value))
                     reply_to = new RFC822.MailboxAddresses.from_rfc822_string(value);
                 
-                if (from != null || sender != null || reply_to != null)
-                    email.set_originators(from, sender, reply_to);
+                email.set_originators(from, sender, reply_to);
             }
             
             // RECEIVERS
-            if (!email.fields.is_all_set(Geary.Email.Field.RECEIVERS)) {
+            if (required_but_not_set(Geary.Email.Field.RECEIVERS, required_fields, email)) {
                 RFC822.MailboxAddresses? to = null;
                 string? value = headers.get_header("To");
                 if (!String.is_empty(value))
@@ -736,8 +737,7 @@ private class Geary.Imap.Folder : BaseObject {
                 if (!String.is_empty(value))
                     bcc = new RFC822.MailboxAddresses.from_rfc822_string(value);
                 
-                if (to != null || cc != null || bcc != null)
-                    email.set_receivers(to, cc, bcc);
+                email.set_receivers(to, cc, bcc);
             }
             
             // REFERENCES
@@ -763,16 +763,19 @@ private class Geary.Imap.Folder : BaseObject {
             }
             
             // SUBJECT
-            if (!email.fields.is_all_set(Geary.Email.Field.SUBJECT)) {
+            // Unlike DATE, allow for empty subjects
+            if (required_but_not_set(Geary.Email.Field.SUBJECT, required_fields, email)) {
                 string? value = headers.get_header("Subject");
-                if (!String.is_empty(value))
+                if (value != null)
                     email.set_message_subject(new RFC822.Subject.decode(value));
+                else
+                    email.set_message_subject(null);
             }
         }
         
         // It's possible for all these fields to be null even though they were requested from
         // the server, so use requested fields for determination
-        if (required_fields.require(Geary.Email.Field.REFERENCES))
+        if (required_but_not_set(Geary.Email.Field.REFERENCES, required_fields, email))
             email.set_full_references(message_id, in_reply_to, references);
         
         // if body was requested, get it now
@@ -795,6 +798,10 @@ private class Geary.Imap.Folder : BaseObject {
         }
         
         return email;
+    }
+    
+    private bool required_but_not_set(Geary.Email.Field check, Geary.Email.Field users_fields, Geary.Email email) {
+        return users_fields.require(check) ? !email.fields.is_all_set(check) : false;
     }
     
     public string to_string() {
