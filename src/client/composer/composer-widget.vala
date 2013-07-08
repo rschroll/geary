@@ -212,11 +212,11 @@ public class ComposerWidget : Gtk.EventBox {
         from_label = (Gtk.Label) builder.get_object("from label");
         from_single = (Gtk.Label) builder.get_object("from_single");
         from_multiple = (Gtk.ComboBoxText) builder.get_object("from_multiple");
-        to_entry = new EmailEntry();
+        to_entry = new EmailEntry(this);
         (builder.get_object("to") as Gtk.EventBox).add(to_entry);
-        cc_entry = new EmailEntry();
+        cc_entry = new EmailEntry(this);
         (builder.get_object("cc") as Gtk.EventBox).add(cc_entry);
-        bcc_entry = new EmailEntry();
+        bcc_entry = new EmailEntry(this);
         (builder.get_object("bcc") as Gtk.EventBox).add(bcc_entry);
         set_entry_completions();
         subject_entry = builder.get_object("subject") as Gtk.Entry;
@@ -1256,6 +1256,12 @@ public class ComposerWidget : Gtk.EventBox {
                     return true;
                 }
             break;
+            
+            case "Tab":
+                return child_focus(Gtk.DirectionType.TAB_FORWARD);
+            
+            case "ISO_Left_Tab":
+                return child_focus(Gtk.DirectionType.TAB_BACKWARD);
         }
         
         return base.key_press_event(event);
