@@ -640,45 +640,6 @@ public class ConversationViewer : Gtk.Box {
         }
     }
     
-    public void show_only_emails(Geary.EmailIdentifier[] email_ids) {
-        bool shown;
-        WebKit.DOM.Element curr_message = web_view.get_dom_document().get_element_by_id(
-            "message_container").get_first_element_child();
-        while (curr_message != null) {
-            WebKit.DOM.DOMTokenList class_list = curr_message.get_class_list();
-            try {
-                if (!class_list.contains("email"))
-                    break;
-            } catch (Error error) {
-                debug("Error checking class list: %s", error.message);
-                break;
-            }
-            
-            shown = false;
-            foreach (Geary.EmailIdentifier id in email_ids) {
-                if (get_div_id(id) == ((WebKit.DOM.HTMLElement) curr_message).get_id()) {
-                    try {
-                        class_list.remove("compressed");
-                        class_list.remove("hide");
-                    } catch (Error error) {
-                        // pass
-                    }
-                    shown = true;
-                    break;
-                }
-            }
-            if (!shown) {
-                try {
-                    class_list.add("hide");
-                } catch (Error error) {
-                    // pass
-                }
-            }
-            curr_message = curr_message.next_element_sibling;
-        }
-        compress_emails();
-    }
-    
     private void compress_emails() {
         if (messages.size == 0)
             return;
