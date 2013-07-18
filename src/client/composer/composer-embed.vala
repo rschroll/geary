@@ -57,7 +57,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
             get_element_by_id("placeholder") as WebKit.DOM.HTMLElement;
         
         try {
-            conversation_viewer.show_message_div();
+            conversation_viewer.show_conversation_div();
             conversation_viewer.web_view.settings.enable_plugins = true;
             placeholder.insert_adjacent_html("beforebegin",
                 @"<div id='$embed_id'><embed type='composer' /></div>");
