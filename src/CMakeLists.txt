@@ -55,6 +55,8 @@ engine/app/app-conversation-monitor.vala
 engine/app/conversation-monitor/app-append-operation.vala
 engine/app/conversation-monitor/app-conversation-operation-queue.vala
 engine/app/conversation-monitor/app-conversation-operation.vala
+engine/app/conversation-monitor/app-conversation-set.vala
+engine/app/conversation-monitor/app-external-append-operation.vala
 engine/app/conversation-monitor/app-fill-window-operation.vala
 engine/app/conversation-monitor/app-impl-conversation.vala
 engine/app/conversation-monitor/app-local-load-operation.vala
@@ -302,6 +304,7 @@ client/dialogs/alert-dialog.vala
 client/dialogs/attachment-dialog.vala
 client/dialogs/password-dialog.vala
 client/dialogs/preferences-dialog.vala
+client/dialogs/upgrade-dialog.vala
 
 client/folder-list/folder-list-abstract-folder-entry.vala
 client/folder-list/folder-list-account-branch.vala
@@ -331,6 +334,7 @@ client/ui/icon-factory.vala
 client/ui/main-toolbar.vala
 client/ui/main-window.vala
 client/ui/monitored-progress-bar.vala
+client/ui/monitored-spinner.vala
 
 client/util/util-date.vala
 client/util/util-email.vala

@@ -16,8 +16,10 @@ public class ConversationViewer : Gtk.Box {
         | Geary.Email.Field.PREVIEW;
     
     private const int ATTACHMENT_PREVIEW_SIZE = 50;
+    private const int SELECT_CONVERSATION_TIMEOUT_MSEC = 100;
     private const string MESSAGE_CONTAINER_ID = "message_container";
     private const string SELECTION_COUNTER_ID = "multiple_messages";
+    private const string SPINNER_ID = "spinner";
     
     private enum SearchState {
         // Search/find states.
@@ -36,6 +38,33 @@ public class ConversationViewer : Gtk.Box {
         ENTER_SEARCH_FOLDER,
         
         COUNT;
+    }
+    
+    // Main display mode.
+    private enum DisplayMode {
+        NONE = 0,     // Nothing is shown (ni
+        CONVERSATION, // Email conversation
+        MULTISELECT,  // Message indicating that <> 1 conversations are selected
+        LOADING,      // Loading spinner
+        
+        COUNT;
+        
+        // Returns the CSS id associated with this mode's DIV container.
+        public string get_id() {
+            switch (this) {
+                case CONVERSATION:
+                    return MESSAGE_CONTAINER_ID;
+                
+                case MULTISELECT:
+                    return SELECTION_COUNTER_ID;
+                
+                case LOADING:
+                    return SPINNER_ID;
+                
+                default:
+                    assert_not_reached();
+            }
+        }
     }
     
     // Fired when the user clicks a link.
@@ -90,6 +119,8 @@ public class ConversationViewer : Gtk.Box {
     private ConversationFindBar conversation_find_bar;
     private Cancellable cancellable_fetch = new Cancellable();
     private Geary.State.Machine fsm;
+    private DisplayMode display_mode = DisplayMode.NONE;
+    private uint select_conversation_timeout_id = 0;
     
     public ConversationViewer() {
         Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
@@ -100,7 +131,7 @@ public class ConversationViewer : Gtk.Box {
         Geary.State.Mapping[] mappings = {
             new Geary.State.Mapping(SearchState.NONE, SearchEvent.RESET, on_reset),
             new Geary.State.Mapping(SearchState.NONE, SearchEvent.OPEN_FIND_BAR, on_open_find_bar),
-            new Geary.State.Mapping(SearchState.NONE, SearchEvent.CLOSE_FIND_BAR, Geary.State.nop),
+            new Geary.State.Mapping(SearchState.NONE, SearchEvent.CLOSE_FIND_BAR, on_close_find_bar),
             new Geary.State.Mapping(SearchState.NONE, SearchEvent.ENTER_SEARCH_FOLDER, on_enter_search_folder),
             
             new Geary.State.Mapping(SearchState.FIND, SearchEvent.RESET, on_reset),
@@ -110,7 +141,7 @@ public class ConversationViewer : Gtk.Box {
             
             new Geary.State.Mapping(SearchState.SEARCH_FOLDER, SearchEvent.RESET, on_reset),
             new Geary.State.Mapping(SearchState.SEARCH_FOLDER, SearchEvent.OPEN_FIND_BAR, on_open_find_bar),
-            new Geary.State.Mapping(SearchState.SEARCH_FOLDER, SearchEvent.CLOSE_FIND_BAR, Geary.State.nop),
+            new Geary.State.Mapping(SearchState.SEARCH_FOLDER, SearchEvent.CLOSE_FIND_BAR, on_close_find_bar),
             new Geary.State.Mapping(SearchState.SEARCH_FOLDER, SearchEvent.ENTER_SEARCH_FOLDER, Geary.State.nop),
         };
         
@@ -175,13 +206,12 @@ public class ConversationViewer : Gtk.Box {
         return "message_%s".printf(id.to_string());
     }
     
-    public void show_multiple_selected(uint selected_count) {
+    private void show_multiple_selected(uint selected_count) {
         // Remove any messages and hide the message container, then show the counter.
         clear(current_folder, current_account_information);
+        set_mode(DisplayMode.MULTISELECT);
+        
         try {
-            web_view.hide_element_by_id(MESSAGE_CONTAINER_ID);
-            web_view.show_element_by_id(SELECTION_COUNTER_ID);
-            
             // Update the counter's count.
             WebKit.DOM.HTMLElement counter =
                 web_view.get_dom_document().get_element_by_id("selection_counter") as WebKit.DOM.HTMLElement;
@@ -233,6 +263,17 @@ public class ConversationViewer : Gtk.Box {
         if (conversations.size == 1) {
             clear(current_folder, current_folder.account.information);
             web_view.scroll_reset();
+            
+            if (select_conversation_timeout_id != 0)
+                Source.remove(select_conversation_timeout_id);
+            
+            // If the load is taking too long, display a spinner.
+            select_conversation_timeout_id = Timeout.add(SELECT_CONVERSATION_TIMEOUT_MSEC, () => {
+                if (select_conversation_timeout_id != 0)
+                    set_mode(DisplayMode.LOADING);
+                
+                return false;
+            });
             
             current_conversation = Geary.Collection.get_first(conversations);
             
@@ -286,8 +327,9 @@ public class ConversationViewer : Gtk.Box {
         }
     }
     
-    private void on_search_text_changed() {
-        highlight_search_terms.begin();
+    private void on_search_text_changed(string? query) {
+        if (query != null)
+            highlight_search_terms.begin();
     }
     
     private async void highlight_search_terms() {
@@ -304,7 +346,7 @@ public class ConversationViewer : Gtk.Box {
         
         try {
             // Request a list of search terms.
-            Gee.Collection<string>? search_keywords = yield search_folder.get_search_keywords_async(
+            Gee.Collection<string>? search_keywords = yield search_folder.get_search_matches_async(
                 ids, cancellable_fetch);
             
             // Highlight the search terms.
@@ -326,7 +368,7 @@ public class ConversationViewer : Gtk.Box {
             Geary.ComposedEmail.REQUIRED_REPLY_FIELDS;
         
         Geary.Email full_email;
-        if (email.id.get_folder_path() == null) {
+        if (email.id.folder_path == null) {
             full_email = yield current_folder.account.local_fetch_email_async(
                 email.id, required_fields, cancellable);
         } else {
@@ -365,19 +407,10 @@ public class ConversationViewer : Gtk.Box {
         remove_message(email);
     }
     
-    public void show_message_div() {
-        try {
-            web_view.show_element_by_id(MESSAGE_CONTAINER_ID);
-            web_view.hide_element_by_id(SELECTION_COUNTER_ID);
-        } catch (Error e) {
-            debug("Error showing/hiding containers: %s", e.message);
-        }
-    }
-    
     private void add_message(Geary.Email email) {
         // Make sure the message container is showing and the multi-message counter hidden.
-        show_message_div();
-
+        set_mode(DisplayMode.CONVERSATION);
+        
         if (messages.contains(email))
             return;
         
@@ -899,7 +932,7 @@ public class ConversationViewer : Gtk.Box {
         ConversationViewer conversation_viewer) {
         event.stop_propagation();
         Geary.Email? email = conversation_viewer.get_email_from_element(element);
-        if (email != null && email.id.get_folder_path() != null)
+        if (email != null && email.id.folder_path != null)
             conversation_viewer.unflag_message(email);
     }
 
@@ -907,7 +940,7 @@ public class ConversationViewer : Gtk.Box {
         ConversationViewer conversation_viewer) {
         event.stop_propagation();
         Geary.Email? email = conversation_viewer.get_email_from_element(element);
-        if (email != null && email.id.get_folder_path() != null)
+        if (email != null && email.id.folder_path != null)
             conversation_viewer.flag_message(email);
     }
 
@@ -1337,7 +1370,7 @@ public class ConversationViewer : Gtk.Box {
         menu.append(new Gtk.SeparatorMenuItem());
         
         // Mark as read/unread.
-        if (email.id.get_folder_path() != null && current_folder is Geary.FolderSupport.Mark) {
+        if (email.id.folder_path != null && current_folder is Geary.FolderSupport.Mark) {
             if (email.is_unread().to_boolean(false)) {
                 Gtk.MenuItem mark_read_item = new Gtk.MenuItem.with_mnemonic(_("_Mark as Read"));
                 mark_read_item.activate.connect(() => on_mark_read_message(email));
@@ -1729,7 +1762,7 @@ public class ConversationViewer : Gtk.Box {
                 if (message.email_flags.is_unread()) {
                     WebKit.DOM.HTMLElement element = email_to_element.get(message.id);
                     WebKit.DOM.HTMLElement body = (WebKit.DOM.HTMLElement) element.get_elements_by_class_name("body").item(0);
-                    if (message.id.get_folder_path() != null &&
+                    if (message.id.folder_path != null &&
                             !element.get_class_list().contains("manual_read") &&
                             body.offset_top + body.offset_height > scroll_top &&
                             body.offset_top + 28 < scroll_top + scroll_height) {  // 28 = 15 padding + 13 first line of text
@@ -1756,12 +1789,12 @@ public class ConversationViewer : Gtk.Box {
         web_view.unmark_text_matches();
         
         if (search_folder != null) {
-            search_folder.search_keywords_changed.disconnect(on_search_text_changed);
+            search_folder.search_query_changed.disconnect(on_search_text_changed);
             search_folder = null;
         }
         
         if (conversation_find_bar.visible)
-            conversation_find_bar.hide(); // Close the find bar.
+            fsm.do_post_transition(() => { conversation_find_bar.hide(); }, user, object);
         
         return SearchState.NONE;
     }
@@ -1794,9 +1827,28 @@ public class ConversationViewer : Gtk.Box {
     private uint on_enter_search_folder(uint state, uint event, void *user, Object? object) {
         search_folder = current_folder as Geary.SearchFolder;
         assert(search_folder != null);
-        search_folder.search_keywords_changed.connect(on_search_text_changed);
+        search_folder.search_query_changed.connect(on_search_text_changed);
         
         return SearchState.SEARCH_FOLDER;
+    }
+    
+    // Sets the current display mode by displaying only the corresponding DIV.
+    private void set_mode(DisplayMode mode) {
+        select_conversation_timeout_id = 0; // Cancel select timers.
+        
+        display_mode = mode;
+        
+        try {
+            for(int i = DisplayMode.NONE + 1; i < DisplayMode.COUNT; i++) {
+                if ((int) mode != i)
+                    web_view.hide_element_by_id(((DisplayMode) i).get_id());
+            }
+            
+            if (mode != DisplayMode.NONE)
+                web_view.show_element_by_id(mode.get_id());
+        } catch (Error e) {
+            debug("Error updating counter: %s", e.message);
+        }
     }
 }
 

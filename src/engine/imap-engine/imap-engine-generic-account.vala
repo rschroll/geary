@@ -32,6 +32,7 @@ private abstract class Geary.ImapEngine.GenericAccount : Geary.AbstractAccount {
         this.remote.email_sent.connect(on_email_sent);
         
         search_upgrade_monitor = local.search_index_monitor;
+        db_upgrade_monitor = local.upgrade_monitor;
         
         if (outbox_path == null) {
             outbox_path = new SmtpOutboxFolderRoot();
@@ -40,6 +41,38 @@ private abstract class Geary.ImapEngine.GenericAccount : Geary.AbstractAccount {
         if (search_path == null) {
             search_path = new SearchFolderRoot();
         }
+    }
+    
+    protected override void notify_folders_available_unavailable(Gee.List<Geary.Folder>? available,
+        Gee.List<Geary.Folder>? unavailable) {
+        base.notify_folders_available_unavailable(available, unavailable);
+        if (available != null) {
+            foreach (Geary.Folder folder in available) {
+                folder.email_appended.connect(on_folder_email_appended);
+                folder.email_removed.connect(on_folder_email_removed);
+                folder.email_locally_complete.connect(on_folder_email_locally_complete);
+            }
+        }
+        if (unavailable != null) {
+            foreach (Geary.Folder folder in unavailable) {
+                folder.email_appended.disconnect(on_folder_email_appended);
+                folder.email_removed.disconnect(on_folder_email_removed);
+                folder.email_locally_complete.disconnect(on_folder_email_locally_complete);
+            }
+        }
+    }
+    
+    private void on_folder_email_appended(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids) {
+        notify_email_appended(folder, ids);
+    }
+    
+    private void on_folder_email_removed(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids) {
+        notify_email_removed(folder, ids);
+    }
+    
+    private void on_folder_email_locally_complete(Geary.Folder folder,
+        Gee.Collection<Geary.EmailIdentifier> ids) {
+        notify_email_locally_complete(folder, ids);
     }
     
     private void check_open() throws EngineError {
@@ -477,23 +510,30 @@ private abstract class Geary.ImapEngine.GenericAccount : Geary.AbstractAccount {
         return yield local.fetch_email_async(email_id, required_fields, cancellable);
     }
     
-    public override async Gee.Collection<Geary.Email>? local_search_async(string keywords,
+    public override async Geary.EmailIdentifier? folder_email_id_to_search_async(
+        Geary.FolderPath folder_path, Geary.EmailIdentifier id,
+        Geary.FolderPath? return_folder_path, Cancellable? cancellable = null) throws Error {
+        return yield local.folder_email_id_to_search_async(
+            folder_path, id, return_folder_path, cancellable);
+    }
+    
+    public override async Gee.Collection<Geary.Email>? local_search_async(string query,
         Geary.Email.Field requested_fields, bool partial_ok, Geary.FolderPath? email_id_folder_path,
         int limit = 100, int offset = 0, Gee.Collection<Geary.FolderPath?>? folder_blacklist = null,
         Gee.Collection<Geary.EmailIdentifier>? search_ids = null, Cancellable? cancellable = null) throws Error {
         if (offset < 0)
             throw new EngineError.BAD_PARAMETERS("Offset must not be negative");
         
-        previous_prepared_search_query = local.prepare_search_query(keywords);
+        previous_prepared_search_query = local.prepare_search_query(query);
         
-        return yield local.search_async(local.prepare_search_query(keywords),
+        return yield local.search_async(previous_prepared_search_query,
             requested_fields, partial_ok, email_id_folder_path, limit, offset,
             folder_blacklist, search_ids, cancellable);
     }
     
-    public override async Gee.Collection<string>? get_search_keywords_async(
+    public override async Gee.Collection<string>? get_search_matches_async(
         Gee.Collection<Geary.EmailIdentifier> ids, Cancellable? cancellable = null) throws Error {
-        return yield local.get_search_keywords_async(previous_prepared_search_query, ids, cancellable);
+        return yield local.get_search_matches_async(previous_prepared_search_query, ids, cancellable);
     }
     
     private void on_login_failed(Geary.Credentials? credentials) {

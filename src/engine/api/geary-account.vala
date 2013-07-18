@@ -16,6 +16,7 @@ public interface Geary.Account : BaseObject {
     public abstract Geary.AccountInformation information { get; protected set; }
     
     public abstract Geary.ProgressMonitor search_upgrade_monitor { get; protected set; }
+    public abstract Geary.ProgressMonitor db_upgrade_monitor { get; protected set; }
     
     public signal void opened();
     
@@ -59,6 +60,23 @@ public interface Geary.Account : BaseObject {
     public signal void folders_contents_altered(Gee.Collection<Geary.Folder> altered);
     
     /**
+     * Fired when emails are appended to a folder in this account.
+     */
+    public signal void email_appended(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids);
+    
+    /**
+     * Fired when emails are removed from a folder in this account.
+     */
+    public signal void email_removed(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids);
+    
+    /**
+     * Fired when one or more emails have been locally saved to a folder with
+     * the full set of Fields.
+     */
+    public signal void email_locally_complete(Geary.Folder folder,
+        Gee.Collection<Geary.EmailIdentifier> ids);
+    
+    /**
      * Signal notification method for subclasses to use.
      */
     protected abstract void notify_opened();
@@ -94,6 +112,19 @@ public interface Geary.Account : BaseObject {
      * Signal notification method for subclasses to use.
      */
     protected abstract void notify_folders_contents_altered(Gee.Collection<Geary.Folder> altered);
+    
+    /**
+     * Signal notification method for subclasses to use.
+     */
+    protected abstract void notify_email_appended(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids);
+    
+    /**
+     * Signal notification method for subclasses to use.
+     */
+    protected abstract void notify_email_removed(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids);
+    
+    protected abstract void notify_email_locally_complete(Geary.Folder folder,
+        Gee.Collection<Geary.EmailIdentifier> ids);
     
     /**
      * A utility method to sort a Gee.Collection of {@link Folder}s by their {@link FolderPath}s
@@ -205,15 +236,24 @@ public interface Geary.Account : BaseObject {
     /**
      * Return a single email fulfilling the required fields.  The email to pull
      * is identified by an EmailIdentifier from a previous call to
-     * local_search_message_id_async().  Throw EngineError.NOT_FOUND if the
-     * email isn't found and EngineError.INCOMPLETE_MESSAGE if the fields
-     * aren't available.
+     * local_search_message_id_async() or local_search_async().  Throw
+     * EngineError.NOT_FOUND if the email isn't found and
+     * EngineError.INCOMPLETE_MESSAGE if the fields aren't available.
      */
     public abstract async Geary.Email local_fetch_email_async(Geary.EmailIdentifier email_id,
         Geary.Email.Field required_fields, Cancellable? cancellable = null) throws Error;
     
     /**
-     * Performs a search with the given keyword string.  Optionally, a list of folders not to search
+     * Return the given EmailIdentifier as a "search" EmailIdentifier that can
+     * be used in local_fetch_email_async().  Return null if the email id isn't
+     * in the local database.
+     */
+    public abstract async Geary.EmailIdentifier? folder_email_id_to_search_async(
+        Geary.FolderPath folder_path, Geary.EmailIdentifier id,
+        Geary.FolderPath? return_folder_path, Cancellable? cancellable = null) throws Error;
+    
+    /**
+     * Performs a search with the given query string.  Optionally, a list of folders not to search
      * can be passed as well as a list of email identifiers to restrict the search to only those messages.
      * Returns a list of email objects with the requested fields.  If partial_ok is false,  mail
      * will only be returned if it includes all requested fields.  The
@@ -223,16 +263,16 @@ public interface Geary.Account : BaseObject {
      * you can walk the table.  limit can be negative to mean "no limit" but
      * offset must not be negative.
      */
-    public abstract async Gee.Collection<Geary.Email>? local_search_async(string keywords,
+    public abstract async Gee.Collection<Geary.Email>? local_search_async(string query,
         Geary.Email.Field requested_fields, bool partial_ok, Geary.FolderPath? email_id_folder_path,
         int limit = 100, int offset = 0, Gee.Collection<Geary.FolderPath?>? folder_blacklist = null,
         Gee.Collection<Geary.EmailIdentifier>? search_ids = null, Cancellable? cancellable = null) throws Error;
     
     /**
-     * Given a list of mail IDs, returns a list of keywords that match for the current
-     * search keywords.
+     * Given a list of mail IDs, returns a list of words that match for the
+     * last run local_search_async() query.
      */
-    public abstract async Gee.Collection<string>? get_search_keywords_async(
+    public abstract async Gee.Collection<string>? get_search_matches_async(
         Gee.Collection<Geary.EmailIdentifier> ids, Cancellable? cancellable = null) throws Error;
     
     /**

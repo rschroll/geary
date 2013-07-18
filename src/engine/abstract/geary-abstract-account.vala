@@ -7,6 +7,7 @@
 public abstract class Geary.AbstractAccount : BaseObject, Geary.Account {
     public Geary.AccountInformation information { get; protected set; }
     public Geary.ProgressMonitor search_upgrade_monitor { get; protected set; }
+    public Geary.ProgressMonitor db_upgrade_monitor { get; protected set; }
     
     private string name;
     
@@ -27,6 +28,19 @@ public abstract class Geary.AbstractAccount : BaseObject, Geary.Account {
     
     protected virtual void notify_folders_contents_altered(Gee.Collection<Geary.Folder> altered) {
         folders_contents_altered(altered);
+    }
+    
+    protected virtual void notify_email_appended(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids) {
+        email_appended(folder, ids);
+    }
+    
+    protected virtual void notify_email_removed(Geary.Folder folder, Gee.Collection<Geary.EmailIdentifier> ids) {
+        email_removed(folder, ids);
+    }
+    
+    protected virtual void notify_email_locally_complete(Geary.Folder folder,
+        Gee.Collection<Geary.EmailIdentifier> ids) {
+        email_locally_complete(folder, ids);
     }
     
     protected virtual void notify_opened() {
@@ -83,12 +97,16 @@ public abstract class Geary.AbstractAccount : BaseObject, Geary.Account {
     public abstract async Geary.Email local_fetch_email_async(Geary.EmailIdentifier email_id,
         Geary.Email.Field required_fields, Cancellable? cancellable = null) throws Error;
     
-    public abstract async Gee.Collection<Geary.EmailIdentifier>? local_search_async(string keywords,
+    public abstract async Geary.EmailIdentifier? folder_email_id_to_search_async(
+        Geary.FolderPath folder_path, Geary.EmailIdentifier id,
+        Geary.FolderPath? return_folder_path, Cancellable? cancellable = null) throws Error;
+    
+    public abstract async Gee.Collection<Geary.EmailIdentifier>? local_search_async(string query,
         Geary.Email.Field requested_fields, bool partial_ok, Geary.FolderPath? email_id_folder_path,
         int limit = 100, int offset = 0, Gee.Collection<Geary.FolderPath?>? folder_blacklist = null,
         Gee.Collection<Geary.EmailIdentifier>? search_ids = null, Cancellable? cancellable = null) throws Error;
     
-    public abstract async Gee.Collection<string>? get_search_keywords_async(
+    public abstract async Gee.Collection<string>? get_search_matches_async(
         Gee.Collection<Geary.EmailIdentifier> ids, Cancellable? cancellable = null) throws Error;
     
     public virtual string to_string() {
