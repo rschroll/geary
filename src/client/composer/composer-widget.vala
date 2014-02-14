@@ -672,9 +672,14 @@ public class ComposerWidget : Gtk.EventBox {
         update_from_field();
     }
     
-    public bool should_close() {
-        if (!editor.can_undo())
+    // See if the user wants to close the composer.  Return true and start the closing process
+    // if so.
+    public bool try_close(bool do_close = true) {
+        if (!editor.can_undo()) {
+            if (do_close)
+                close();
             return true;
+        }
         
         container.present();
         AlertDialog dialog;
@@ -693,20 +698,15 @@ public class ComposerWidget : Gtk.EventBox {
             return false; // Cancel
         } else if (response == Gtk.ResponseType.OK) {
             save_and_exit.begin(); // Save
-            return false;
+            return true;
         } else {
             delete_and_exit.begin(); // Discard
-            return false;
+            return true;
         }
     }
     
-    public override bool delete_event(Gdk.EventAny event) {
-        return !should_close();
-    }
-    
     private void on_close() {
-        if (should_close())
-            destroy();
+        try_close();
     }
     
     private bool email_contains_attachment_keywords() {
@@ -800,7 +800,7 @@ public class ComposerWidget : Gtk.EventBox {
         }
         
         yield delete_draft_async();
-        destroy(); // Only close window after draft is deleted; this closes the drafts folder.
+        close(); // Only close window after draft is deleted; this closes the drafts folder.
     }
     
     // Returns the drafts folder for the current From account.
@@ -889,7 +889,7 @@ public class ComposerWidget : Gtk.EventBox {
         // Do the save.
         yield save_async(null);
         
-        destroy();
+        close();
     }
     
     private async void delete_and_exit() {
@@ -899,7 +899,7 @@ public class ComposerWidget : Gtk.EventBox {
         // Do the delete.
         yield delete_draft_async();
         
-        destroy();
+        close();
     }
     
     private async void delete_draft_async() {
@@ -1714,7 +1714,12 @@ public class ComposerWidget : Gtk.EventBox {
         bcc_entry.completion = new ContactEntryCompletion(contact_list_store);
     }
     
+    public void close() {
+        container.close();
+    }
+    
     public override void destroy() {
+        debug("!!! About to destroy!");
         close_drafts_folder_async.begin();
     }
 }

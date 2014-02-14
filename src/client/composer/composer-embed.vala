@@ -108,8 +108,7 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
     }
     
     private void on_close() {
-        if (composer.should_close())
-            close();
+        composer.try_close();
     }
     
     private void on_detach() {
@@ -150,7 +149,8 @@ public class ComposerEmbed : Gtk.Box, ComposerContainer {
         return top_window.get_focus();
     }
     
-    private void close() {
+    public void close() {
+        debug("Close");
         if (composer != null) {
             composer.editor.focus_in_event.disconnect(on_focus_in);
             composer.editor.focus_out_event.disconnect(on_focus_out);
